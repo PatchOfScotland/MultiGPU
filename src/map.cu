@@ -105,9 +105,6 @@ int main(int argc, char** argv){
         }
     }
 
-    print_timing_array(single_gpu_ms, runs, "ms\0");
-
-
     { // Benchmark a single GPU
         std::cout << "*** Benchmarking single GPU map ***\n";
 
@@ -120,7 +117,10 @@ int main(int argc, char** argv){
             CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
             single_gpu_ms[run] = runtime;
 
-            if (validating && run==0) {
+
+            // do this at the end as reading output array will shift it back to 
+            // the host
+            if (validating && run==runs-1) {
                 if(compare_arrays(validation_array, output_array, array_len)){
                     std::cout << "  Single GPU map is correct\n";
                 } else {
