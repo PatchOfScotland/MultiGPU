@@ -3,9 +3,9 @@ PROGRAMS=map
 
 all: $(PROGRAMS)
 
-map:
+map: 
 	mkdir -p build
-	nvcc src/map.cu -o build/map $(FLAGS)
+	nvcc src/map.cu -o $^ build/map $(FLAGS)
 
 clean:
 	rm -f build/$(PROGRAMS)
