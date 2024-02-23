@@ -73,8 +73,9 @@ int main(int argc, char** argv){
     arrayType* output_array;
     arrayType* validation_array;
     arrayType constant = 0.1;
-    CUevent start_event;
-    CUevent end_event;
+    cudaEvent_t start_event;
+    cudaEvent_t end_event;
+    float runtime;
 
     CCC(cudaMallocManaged(&input_array, array_len*sizeof(arrayType)));
     CCC(cudaMallocManaged(&output_array, array_len*sizeof(arrayType)));
@@ -96,10 +97,11 @@ int main(int argc, char** argv){
 
     { // Benchmark a single GPU
         std::cout << "*** Benchmarking single GPU map ***\n";
-
+        CCC(cudaEventRecord(start_event));
         singleGpuMapping(singleGpuKernel<arrayType>, input_array, constant, output_array, array_len);
-
-        cudaDeviceSynchronize(); 
+        CCC(cudaEventRecord(end_event));
+        CCC(cudaDeviceSynchronize()); 
+        CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
 
         if (validating) {
             if(compare_arrays(validation_array, output_array, array_len)){
@@ -108,6 +110,8 @@ int main(int argc, char** argv){
                 std::cout << "  Single GPU map is incorrect\n";
             }
         }
+        std::cout << "  Runtime was: " << runtime << "ms\n";
+
     }
 
 //    for (int i=0; i<array_len; i++) {
