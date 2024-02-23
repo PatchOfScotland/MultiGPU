@@ -54,6 +54,7 @@ int main(int argc, char** argv){
     CCC(cudaEventCreate(&start_event));
     CCC(cudaEventCreate(&end_event));
     float* single_gpu_ms = (float*)calloc(runs, sizeof(float));
+    float* multi_gpu_ms = (float*)calloc(runs, sizeof(float));
 
     init_array(input_array, array_len);
 
@@ -81,6 +82,7 @@ int main(int argc, char** argv){
             CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
             single_gpu_ms[run] = runtime;
 
+            print_loop_feedback(run, runs);
 
             // do this at the end as reading output array will shift it back to 
             // the host
@@ -118,8 +120,9 @@ int main(int argc, char** argv){
             CCC(cudaEventSynchronize(end_event)); 
 
             CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
-            single_gpu_ms[run] = runtime;
+            multi_gpu_ms[run] = runtime;
 
+            print_loop_feedback(run, runs);
 
             // do this at the end as reading output array will shift it back to 
             // the host
@@ -135,7 +138,7 @@ int main(int argc, char** argv){
 
         float mean = 0;
         float total = 0;
-        get_timing_stats(single_gpu_ms, runs, &total, &mean);
+        get_timing_stats(multi_gpu_ms, runs, &total, &mean);
         float gigabytes_per_second = (float)datasize / (mean * 1e-3f);
         std::cout << "    Total runtime: " << total <<"ms\n";
         std::cout << "    Mean runtime:  " << mean <<"ms\n";
