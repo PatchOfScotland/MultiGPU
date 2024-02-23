@@ -78,8 +78,8 @@ int main(int argc, char** argv){
 
     CCC(cudaMallocManaged(&input_array, array_len*sizeof(arrayType)));
     CCC(cudaMallocManaged(&output_array, array_len*sizeof(arrayType)));
-    CCC(cudaCreateEvent(&start_event));
-    CCC(cudaCreateEvent(&end_event));
+    CCC(cudaEventCreate(&start_event));
+    CCC(cudaEventCreate(&end_event));
 
     init_array(input_array, array_len);
 
@@ -97,7 +97,6 @@ int main(int argc, char** argv){
     { // Benchmark a single GPU
         std::cout << "*** Benchmarking single GPU map ***\n";
 
-        CCC(cudaEventC);
         singleGpuMapping(singleGpuKernel<arrayType>, input_array, constant, output_array, array_len);
 
         cudaDeviceSynchronize(); 
