@@ -30,4 +30,12 @@
         }                                               \
     }
 
+void check_device_count() {
+    int device_count;
+    CCC(cudaGetDeviceCount(&device_count));
+    if (device_count == 1) {
+        std::cout << "!!! Only a single device detected !!!\n";
+    }
+}
+
 #endif
