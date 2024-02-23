@@ -58,10 +58,11 @@ int main(int argc, char** argv){
         }
     }
 
+    float datasize = ((array_len*2*sizeof(arrayType))/1e9);
     std::cout << "Running array of length " 
               << array_len 
               << " (" 
-              << ((array_len*2*sizeof(arrayType))/1e9) 
+              << datasize 
               <<"GB)\n";
     if (validating) {
         std::cout << "Will validate output\n";
@@ -129,9 +130,15 @@ int main(int argc, char** argv){
                 }
             }
         }
-    }
 
-    print_timing_array(single_gpu_ms, runs, "ms\0");
+        float mean = 0;
+        float total = 0;
+        get_timing_stats(single_gpu_ms, runs, &total, &mean);
+        float gigabytes_per_second = (float)datasize / (mean * 1e-3f);
+        std::cout << "  Total runtime: " << total <<"ms\n";
+        std::cout << "  Mean runtime:  " << mean <<"ms\n";
+        std::cout << "  Throughput:    " << gigabytes_per_second <<"GB/s\n";
+    }
 
     if (validating) {
         free(validation_array);

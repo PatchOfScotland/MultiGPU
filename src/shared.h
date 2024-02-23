@@ -55,4 +55,12 @@ void print_timing_array(T* timing_array, size_t array_len, std::string units) {
     std::cout << "\tMean:  " << total/array_len << units << "\n";
 }
 
+template<class T>
+void get_timing_stats(T* timing_array, size_t array_len, T* total, T* mean) {
+    for (int i=0; i<array_len; i++) {
+        *total = *total + timing_array[i];
+    }
+    *mean = *total/array_len;
+}
+
 #endif
