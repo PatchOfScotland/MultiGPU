@@ -2,6 +2,7 @@
 
 #include "map/cpu.h"
 #include "map/singleGPU.h"
+#include "map/multiGPU.h"
 #include "shared.cu.h"
 #include "shared.h"
 
@@ -106,13 +107,13 @@ int main(int argc, char** argv){
         std::cout << "*** Benchmarking multi GPU map ***\n";
 
         std::cout << "  Running a warmup\n";
-        singleGpuMapping(singleGpuKernel<arrayType>, input_array, constant, output_array, array_len);
+        multiGpuMapping(multiGpuKernel<arrayType>, input_array, constant, output_array, array_len);
         CCC(cudaEventRecord(end_event));
         CCC(cudaEventSynchronize(end_event));        
 
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
-            singleGpuMapping(singleGpuKernel<arrayType>, input_array, constant, output_array, array_len);
+            multiGpuMapping(multiGpuKernel<arrayType>, input_array, constant, output_array, array_len);
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event)); 
 
