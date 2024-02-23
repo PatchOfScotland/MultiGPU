@@ -40,15 +40,16 @@ void singleGpuMapping(F mapped_kernel, T* input_array, const T constant, T* outp
 }
 
 int main(int argc, char** argv){
-    if (argc < 2)
+    if (argc < 3)
     {
         std::cout << "Usage: " 
                   << argv[0] 
-                  << " <array length> -v(optional)\n";
+                  << " <array length> <benchmark repeats> -v(optional)\n";
         exit(EXIT_FAILURE);
     } 
 
     unsigned int array_len = atoi(argv[1]);
+    unsigned int runs = atoi(argv[2]);
     bool validating = false;
 
     for (int i=0; i<argc; i++) {
@@ -79,8 +80,10 @@ int main(int argc, char** argv){
 
     CCC(cudaMallocManaged(&input_array, array_len*sizeof(arrayType)));
     CCC(cudaMallocManaged(&output_array, array_len*sizeof(arrayType)));
+
     CCC(cudaEventCreate(&start_event));
     CCC(cudaEventCreate(&end_event));
+    float* single_gpu_ms = (float*)calloc(runs, sizeof(float));
 
     init_array(input_array, array_len);
 
@@ -92,31 +95,43 @@ int main(int argc, char** argv){
         std::cout << validation_array[0] << ", " << validation_array[1] << "\n";
     }
 
+    { // Warmup run
+        std::cout << "Running 3 warmups\n";
+        for (int i=0; i<3; i++) {
+            CCC(cudaEventRecord(start_event));
+            singleGpuMapping(singleGpuKernel<arrayType>, input_array, constant, output_array, array_len);
+            CCC(cudaEventRecord(end_event));
+            CCC(cudaEventSynchronize(end_event));
+        }
+    }
 
-    // Warmup run
+    print_timing_array(single_gpu_ms, runs, "ms\0");
+
 
     { // Benchmark a single GPU
         std::cout << "*** Benchmarking single GPU map ***\n";
-        CCC(cudaEventRecord(start_event));
-        singleGpuMapping(singleGpuKernel<arrayType>, input_array, constant, output_array, array_len);
-        CCC(cudaEventRecord(end_event));
-        CCC(cudaDeviceSynchronize()); 
-        CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
 
-        if (validating) {
-            if(compare_arrays(validation_array, output_array, array_len)){
-                std::cout << "  Single GPU map is correct\n";
-            } else {
-                std::cout << "  Single GPU map is incorrect\n";
+        for (int run=0; run<runs; run++) {
+            CCC(cudaEventRecord(start_event));
+            singleGpuMapping(singleGpuKernel<arrayType>, input_array, constant, output_array, array_len);
+            CCC(cudaEventRecord(end_event));
+            CCC(cudaEventSynchronize(end_event)); 
+
+            CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
+            single_gpu_ms[run] = runtime;
+
+            if (validating && run==0) {
+                if(compare_arrays(validation_array, output_array, array_len)){
+                    std::cout << "  Single GPU map is correct\n";
+                } else {
+                    std::cout << "  Single GPU map is incorrect. Skipping any subsequent runs\n";
+                    break;
+                }
             }
         }
-        std::cout << "  Runtime was: " << runtime << "ms\n";
-
     }
 
-//    for (int i=0; i<array_len; i++) {
-//        std::cout << validation_array[i] << ", \t" << output_array[i] << "\n";
-//    }
+    print_timing_array(single_gpu_ms, runs, "ms\0");
 
     if (validating) {
         free(validation_array);
