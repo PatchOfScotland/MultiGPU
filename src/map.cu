@@ -1,24 +1,26 @@
 #include <functional>
 
 #include "map/cpu.h"
-#include "map/singleGPU.h"
 #include "map/multiGPU.h"
+#include "map/multiGPUstreams.h"
+#include "map/singleGPU.h"
 #include "shared.cu.h"
 #include "shared.h"
 
 typedef float arrayType;
 
 int main(int argc, char** argv){
-    if (argc < 3)
+    if (argc < 4)
     {
         std::cout << "Usage: " 
                   << argv[0] 
-                  << " <array length> <benchmark repeats> -v(optional)\n";
+                  << " <array length> <stream count> <benchmark repeats> -v(optional)\n";
         exit(EXIT_FAILURE);
     } 
 
-    unsigned int array_len = atoi(argv[1]);
-    unsigned int runs = atoi(argv[2]);
+    unsigned long int array_len = strtoul(argv[1], NULL, 0);
+    unsigned int stream_count = atoi(argv[2]);
+    unsigned int runs = atoi(argv[3]);
     bool validating = false;
 
     for (int i=0; i<argc; i++) {
@@ -27,12 +29,14 @@ int main(int argc, char** argv){
         }
     }
 
-    float datasize = ((array_len*2*sizeof(arrayType))/1e9);
+    double datasize = ((array_len*2*sizeof(arrayType))/1e9);
     std::cout << "Running array of length " 
               << array_len 
               << " (" 
               << datasize 
-              <<"GB)\n";
+              <<"GB) and " 
+              << stream_count
+              <<" stream\n";
     if (validating) {
         std::cout << "Will validate output\n";
     }
@@ -55,6 +59,12 @@ int main(int argc, char** argv){
     CCC(cudaEventCreate(&end_event));
     float* single_gpu_ms = (float*)calloc(runs, sizeof(float));
     float* multi_gpu_ms = (float*)calloc(runs, sizeof(float));
+    float* multi_gpu_stream_ms = (float*)calloc(runs, sizeof(float));
+
+    int origin_device;
+    CCC(cudaGetDevice(&origin_device));
+    int device_count;
+    CCC(cudaGetDeviceCount(&device_count));
 
     init_array(input_array, array_len);
 
@@ -88,9 +98,9 @@ int main(int argc, char** argv){
             // the host
             if (validating && run==runs-1) {
                 if(compare_arrays(validation_array, output_array, array_len)){
-                    std::cout << "  Single GPU map is correct\n";
+                    std::cout << "  Result is correct\n";
                 } else {
-                    std::cout << "  Single GPU map is incorrect. Skipping any subsequent runs\n";
+                    std::cout << "  Result is incorrect. Skipping any subsequent runs\n";
                     break;
                 }
             }
@@ -128,9 +138,9 @@ int main(int argc, char** argv){
             // the host
             if (validating && run==runs-1) {
                 if(compare_arrays(validation_array, output_array, array_len)){
-                    std::cout << "  Single GPU map is correct\n";
+                    std::cout << "  Result is correct\n";
                 } else {
-                    std::cout << "  Single GPU map is incorrect. Skipping any subsequent runs\n";
+                    std::cout << "  Result is incorrect. Skipping any subsequent runs\n";
                     break;
                 }
             }
@@ -143,6 +153,57 @@ int main(int argc, char** argv){
         std::cout << "    Total runtime: " << total <<"ms\n";
         std::cout << "    Mean runtime:  " << mean <<"ms\n";
         std::cout << "    Throughput:    " << gigabytes_per_second <<"GB/s\n";
+    }
+
+    { // Benchmark multiple GPUs w/ Streams
+        std::cout << "*** Benchmarking multi GPU w/ Steams map ***\n";
+
+        cudaStream_t* streams = (cudaStream_t*)calloc(stream_count*device_count, sizeof(cudaStream_t)) ;
+        for (int device=0; device<device_count; device++) {
+            CCC(cudaSetDevice(device));
+            for(int stream = device * stream_count; stream<(device+1)*stream_count; stream++) {
+                cudaStreamCreate(&streams[stream]);
+            }
+        }
+        CCC(cudaSetDevice(origin_device));
+
+        std::cout << "  Running a warmup\n";
+        multiGpuStreamMapping(multiGpuStreamKernel<arrayType>, input_array, constant, output_array, array_len, streams, stream_count);
+        CCC(cudaEventRecord(end_event));
+        CCC(cudaEventSynchronize(end_event));        
+
+        for (int run=0; run<runs; run++) {
+            CCC(cudaEventRecord(start_event));
+            multiGpuStreamMapping(multiGpuStreamKernel<arrayType>, input_array, constant, output_array, array_len, streams, stream_count);
+            CCC(cudaEventRecord(end_event));
+            CCC(cudaEventSynchronize(end_event)); 
+
+            CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
+            multi_gpu_stream_ms[run] = runtime;
+
+            print_loop_feedback(run, runs);
+
+            // do this at the end as reading output array will shift it back to 
+            // the host
+            if (validating && run==runs-1) {
+                if(compare_arrays(validation_array, output_array, array_len)){
+                    std::cout << "  Result is correct\n";
+                } else {
+                    std::cout << "  Result is incorrect. Skipping any subsequent runs\n";
+                    break;
+                }
+            }
+        }
+
+        float mean = 0;
+        float total = 0;
+        get_timing_stats(multi_gpu_stream_ms, runs, &total, &mean);
+        float gigabytes_per_second = (float)datasize / (mean * 1e-3f);
+        std::cout << "    Total runtime: " << total <<"ms\n";
+        std::cout << "    Mean runtime:  " << mean <<"ms\n";
+        std::cout << "    Throughput:    " << gigabytes_per_second <<"GB/s\n";
+
+        free(streams);
     }
 
     if (validating) {
