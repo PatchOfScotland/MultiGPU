@@ -62,12 +62,32 @@ void print_timing_array(T* timing_array, size_t array_len, std::string units) {
     std::cout << "\tMean:  " << total/array_len << units << "\n";
 }
 
-template<class T>
-void get_timing_stats(T* timing_array, size_t array_len, T* total, T* mean) {
+void print_timing_stats(
+    float* timing_array, size_t array_len, double data_gigabytes
+) {
+    float mean = 0;
+    float min = timing_array[0];
+    float max = timing_array[0];
+    float total = 0;
+
     for (int i=0; i<array_len; i++) {
-        *total = *total + timing_array[i];
+        total = total + timing_array[i];
+        if (timing_array[i] < min) {
+            min = timing_array[i];
+        }
+        if (timing_array[i] > max) {
+            max = timing_array[i];
+        }
     }
-    *mean = *total/array_len;
+    mean = total/array_len;
+
+    float mean_seconds = mean * 1e-3f;
+    float gigabytes_per_second = (float)data_gigabytes / mean_seconds;
+    std::cout << "    Total runtime: " << total <<"ms\n";
+    std::cout << "    Min runtime:   " << min <<"ms\n";
+    std::cout << "    Max runtime:   " << max <<"ms\n";
+    std::cout << "    Mean runtime:  " << mean <<"ms\n";
+    std::cout << "    Throughput:    " << gigabytes_per_second <<"GB/sec\n";
 }
 
 void print_loop_feedback(int run, int runs) {

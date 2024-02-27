@@ -7,7 +7,7 @@
 #include "shared.cu.h"
 #include "shared.h"
 
-typedef float arrayType;
+typedef float array_type;
 
 int main(int argc, char** argv){
     if (argc < 4)
@@ -30,7 +30,7 @@ int main(int argc, char** argv){
         }
     }
 
-    double datasize = ((array_len*2*sizeof(arrayType))/1e9);
+    double datasize = ((array_len*2*sizeof(array_type))/1e9);
     std::cout << "Running array of length " 
               << array_len 
               << " (" 
@@ -45,34 +45,34 @@ int main(int argc, char** argv){
         std::cout << "Skipping output validation\n";
     }
 
-    arrayType* input_array;
-    arrayType* output_array;
-    arrayType* validation_array;
-    arrayType constant = 0.1;
+    array_type* input_array;
+    array_type* output_array;
+    array_type* validation_array;
+    array_type constant = 0.1;
     cudaEvent_t start_event;
     cudaEvent_t end_event;
     float runtime;
 
-    CCC(cudaMallocManaged(&input_array, array_len*sizeof(arrayType)));
-    CCC(cudaMallocManaged(&output_array, array_len*sizeof(arrayType)));
+    CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+    CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
 
     CCC(cudaEventCreate(&start_event));
     CCC(cudaEventCreate(&end_event));
-    float* single_gpu_ms = (float*)calloc(runs, sizeof(float));
-    float* multi_gpu_ms = (float*)calloc(runs, sizeof(float));
-    float* multi_gpu_stream_ms = (float*)calloc(runs, sizeof(float));
+    float* timing_ms = (float*)calloc(runs, sizeof(float));
 
     int origin_device;
     CCC(cudaGetDevice(&origin_device));
     int device_count;
     CCC(cudaGetDeviceCount(&device_count));
 
+    std::cout << "Initialising input array\n";
     init_array(input_array, array_len);
 
     if (validating) { // Populate validation array
-        validation_array = (arrayType*)malloc(array_len*sizeof(arrayType));
+        std::cout << "Getting CPU result for validation\n";
+        validation_array = (array_type*)malloc(array_len*sizeof(array_type));
         cpuMapping(
-            PlusConst<arrayType>, input_array, constant, validation_array, 
+            PlusConst<array_type>, input_array, constant, validation_array, 
             array_len
         );
     }
@@ -84,7 +84,7 @@ int main(int argc, char** argv){
 
         std::cout << "  Running a warmup\n";
         singleGpuMapping(
-            singleGpuKernel<arrayType>, input_array, constant, output_array, 
+            singleGpuKernel<array_type>, input_array, constant, output_array, 
             array_len
         );
         CCC(cudaEventRecord(end_event));
@@ -93,14 +93,14 @@ int main(int argc, char** argv){
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
             singleGpuMapping(
-                singleGpuKernel<arrayType>, input_array, constant, 
+                singleGpuKernel<array_type>, input_array, constant, 
                 output_array, array_len
             );
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event)); 
 
             CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
-            single_gpu_ms[run] = runtime;
+            timing_ms[run] = runtime;
 
             print_loop_feedback(run, runs);
 
@@ -117,13 +117,7 @@ int main(int argc, char** argv){
             }
         }
 
-        float mean = 0;
-        float total = 0;
-        get_timing_stats(single_gpu_ms, runs, &total, &mean);
-        float gigabytes_per_second = (float)datasize / (mean * 1e-3f);
-        std::cout << "    Total runtime: " << total <<"ms\n";
-        std::cout << "    Mean runtime:  " << mean <<"ms\n";
-        std::cout << "    Throughput:    " << gigabytes_per_second <<"GB/s\n";
+        print_timing_stats(timing_ms, runs, datasize);
     }
 
     { // Benchmark multiple GPUs
@@ -131,7 +125,7 @@ int main(int argc, char** argv){
 
         std::cout << "  Running a warmup\n";
         multiGpuMapping(
-            multiGpuKernel<arrayType>, input_array, constant, output_array, 
+            multiGpuKernel<array_type>, input_array, constant, output_array, 
             array_len
         );
         CCC(cudaEventRecord(end_event));
@@ -140,14 +134,14 @@ int main(int argc, char** argv){
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
             multiGpuMapping(
-                multiGpuKernel<arrayType>, input_array, constant, output_array,
+                multiGpuKernel<array_type>, input_array, constant, output_array,
                 array_len
             );
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event)); 
 
             CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
-            multi_gpu_ms[run] = runtime;
+            timing_ms[run] = runtime;
 
             print_loop_feedback(run, runs);
 
@@ -164,13 +158,7 @@ int main(int argc, char** argv){
             }
         }
 
-        float mean = 0;
-        float total = 0;
-        get_timing_stats(multi_gpu_ms, runs, &total, &mean);
-        float gigabytes_per_second = (float)datasize / (mean * 1e-3f);
-        std::cout << "    Total runtime: " << total <<"ms\n";
-        std::cout << "    Mean runtime:  " << mean <<"ms\n";
-        std::cout << "    Throughput:    " << gigabytes_per_second <<"GB/s\n";
+        print_timing_stats(timing_ms, runs, datasize);
     }
 
     { // Benchmark multiple GPUs w/ Streams
@@ -188,18 +176,18 @@ int main(int argc, char** argv){
         CCC(cudaSetDevice(origin_device));
 
         std::cout << "  Running a warmup\n";
-        multiGpuStreamMapping(multiGpuStreamKernel<arrayType>, input_array, constant, output_array, array_len, streams, stream_count);
+        multiGpuStreamMapping(multiGpuStreamKernel<array_type>, input_array, constant, output_array, array_len, streams, stream_count);
         CCC(cudaEventRecord(end_event));
         CCC(cudaEventSynchronize(end_event));        
 
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
-            multiGpuStreamMapping(multiGpuStreamKernel<arrayType>, input_array, constant, output_array, array_len, streams, stream_count);
+            multiGpuStreamMapping(multiGpuStreamKernel<array_type>, input_array, constant, output_array, array_len, streams, stream_count);
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event)); 
 
             CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
-            multi_gpu_stream_ms[run] = runtime;
+            timing_ms[run] = runtime;
 
             print_loop_feedback(run, runs);
 
@@ -215,13 +203,7 @@ int main(int argc, char** argv){
             }
         }
 
-        float mean = 0;
-        float total = 0;
-        get_timing_stats(multi_gpu_stream_ms, runs, &total, &mean);
-        float gigabytes_per_second = (float)datasize / (mean * 1e-3f);
-        std::cout << "    Total runtime: " << total <<"ms\n";
-        std::cout << "    Mean runtime:  " << mean <<"ms\n";
-        std::cout << "    Throughput:    " << gigabytes_per_second <<"GB/s\n";
+        print_timing_stats(timing_ms, runs, datasize);
 
         free(streams);
     }
@@ -229,22 +211,36 @@ int main(int argc, char** argv){
     { // Benchmark multiple GPUs with hints
         std::cout << "*** Benchmarking multi GPU map with hints ***\n";
 
-        //hint1D<arrayType>(input_array, 1024, array_len);
-        //hint1D<arrayType>(output_array, 1024, array_len);
-
         int origin_device;
         CCC(cudaGetDevice(&origin_device));
         int device_count;
         CCC(cudaGetDeviceCount(&device_count));
 
+        size_t block_count = (array_len + block_size - 1) / block_size;
+        size_t dev_block_count = (block_count + device_count - 1) / device_count;
+
+        size_t array_offset = 0;
+        unsigned long int block_range;
         for (int device=0; device<device_count; device++) {
-            //CCC(cudaMemAdvise(input_array+, X, X, device));
-            //CCC(cudaMemAdvise(output_array+, X, X, device));
+            block_range = min(dev_block_count, array_len-array_offset);
+            CCC(cudaMemAdvise(
+                input_array+array_offset, 
+                block_range*sizeof(array_type), 
+                cudaMemAdviseSetPreferredLocation, 
+                device
+            ));
+            CCC(cudaMemAdvise(
+                output_array+array_offset, 
+                block_range*sizeof(array_type), 
+                cudaMemAdviseSetPreferredLocation, 
+                device
+            ));
+            array_offset = array_offset + block_range;
         }
 
         std::cout << "  Running a warmup\n";
         multiGpuMapping(
-            multiGpuKernel<arrayType>, input_array, constant, output_array, 
+            multiGpuKernel<array_type>, input_array, constant, output_array, 
             array_len
         );
         CCC(cudaEventRecord(end_event));
@@ -253,14 +249,14 @@ int main(int argc, char** argv){
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
             multiGpuMapping(
-                multiGpuKernel<arrayType>, input_array, constant, output_array,
+                multiGpuKernel<array_type>, input_array, constant, output_array,
                 array_len
             );
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event)); 
 
             CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
-            multi_gpu_ms[run] = runtime;
+            timing_ms[run] = runtime;
 
             print_loop_feedback(run, runs);
 
@@ -277,13 +273,7 @@ int main(int argc, char** argv){
             }
         }
 
-        float mean = 0;
-        float total = 0;
-        get_timing_stats(multi_gpu_ms, runs, &total, &mean);
-        float gigabytes_per_second = (float)datasize / (mean * 1e-3f);
-        std::cout << "    Total runtime: " << total <<"ms\n";
-        std::cout << "    Mean runtime:  " << mean <<"ms\n";
-        std::cout << "    Throughput:    " << gigabytes_per_second <<"GB/s\n";
+        print_timing_stats(timing_ms, runs, datasize);
     }
 
     if (validating) {
