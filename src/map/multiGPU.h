@@ -22,13 +22,12 @@ void multiGpuMapping(
     int device_count;
     CCC(cudaGetDeviceCount(&device_count));
 
-    size_t total_block_count = (array_len + block_size - 1) / block_size;
-    size_t device_block_count = (total_block_count + device_count - 1) 
-        / device_count;
+    size_t block_count = (array_len + block_size - 1) / block_size;
+    size_t dev_block_count = (block_count + device_count - 1) / device_count;
 
     for (int device=0; device<device_count; device++) {
         CCC(cudaSetDevice(device));
-        mapped_kernel<<<device_block_count, block_size>>>(
+        mapped_kernel<<<dev_block_count, block_size>>>(
             input_array, constant, output_array, array_len, device
         );
     }
