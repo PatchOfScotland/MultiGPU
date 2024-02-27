@@ -9,7 +9,10 @@ T PlusConst(const T inputElement, const T x) {
 // input array, with the output in a new output array. Opperates entirely on 
 // the CPU. 
 template<typename F, typename T>
-void cpuMapping(F mapped_function, T* input_array, const T constant, T* output_array, int array_len) {  
+void cpuMapping(
+    F mapped_function, T* input_array, const T constant, T* output_array, 
+    int array_len
+) {  
     #pragma omp parallel for
     for (int i=0; i<array_len; i++) {
         output_array[i] = mapped_function(input_array[i], constant);

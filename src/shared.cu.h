@@ -10,6 +10,8 @@
 #include "cuda_runtime.h"
 #include "cuda_runtime_api.h"
 
+size_t block_size = 1024;
+
 // Checking Cuda Call
 #define CCC(call)                                       \
     {                                                   \
