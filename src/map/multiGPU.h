@@ -2,7 +2,8 @@
 
 template<typename T>
 __global__ void multiGpuKernel(
-    T* input_array, const T x, T* output_array, int array_len, int device_num
+    const T* input_array, const T x, T* output_array, const int array_len, 
+    const int device_num
 ) {
     size_t index = device_num*blockDim.x*gridDim.x 
         + blockDim.x*blockIdx.x 
@@ -14,8 +15,8 @@ __global__ void multiGpuKernel(
 
 template<typename F, typename T>
 void multiGpuMapping(
-    F mapped_kernel, T* input_array, const T constant, T* output_array, 
-    int array_len
+    F mapped_kernel, const T* input_array, const T constant, T* output_array, 
+    const int array_len
 ) {  
     int origin_device;
     CCC(cudaGetDevice(&origin_device));

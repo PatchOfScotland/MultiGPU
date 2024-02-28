@@ -7,5 +7,9 @@ map:
 	mkdir -p build
 	nvcc src/map.cu -o $^ build/map $(FLAGS)
 
+map_bench:
+	make map
+	./build/map 1000000000 3 25 -v
+
 clean:
 	rm -f build/$(PROGRAMS)

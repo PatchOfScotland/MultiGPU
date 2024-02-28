@@ -2,7 +2,8 @@
 
 template<typename T>
 __global__ void multiGpuStreamKernel(
-    T* input_array, const T x, T* output_array, int array_len, int stream_num
+    const T* input_array, const T x, T* output_array, const int array_len, 
+    const int stream_num
 ) {
     size_t index = stream_num*blockDim.x*gridDim.x 
         + blockDim.x*blockIdx.x 
@@ -14,8 +15,8 @@ __global__ void multiGpuStreamKernel(
 
 template<typename F, typename T>
 void multiGpuStreamMapping(
-    F mapped_kernel, T* input_array, const T constant, T* output_array, 
-    int array_len, cudaStream_t* streams, int stream_count
+    F mapped_kernel, const T* input_array, const T constant, T* output_array, 
+    const int array_len, const cudaStream_t* streams, const int stream_count
 ) {  
     int origin_device;
     CCC(cudaGetDevice(&origin_device));
