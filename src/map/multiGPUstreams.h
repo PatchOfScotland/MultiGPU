@@ -24,18 +24,13 @@ void multiGpuStreamMapping(
     CCC(cudaGetDeviceCount(&device_count));
 
     size_t block_count = (array_len + block_size - 1) / block_size;
-    size_t dev_block_count = 
-        (block_count + (stream_count*device_count) - 1) 
-        / (stream_count * device_count)
-    ;
+    size_t dev_block_count = (block_count + device_count - 1) / device_count;
 
     for (int device=0; device<device_count; device++) {
         CCC(cudaSetDevice(device))
-        for(int s = device*stream_count; s<(device+1)*stream_count; s++) {
-            mapped_kernel<<<dev_block_count, block_size, 0, streams[s]>>>(
-                input_array, constant, output_array, array_len, s
-            );
-        }
+        mapped_kernel<<<dev_block_count, block_size, 0, streams[device]>>>(
+            input_array, constant, output_array, array_len, device
+        );
     }
 
     CCC(cudaSetDevice(origin_device));

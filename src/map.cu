@@ -11,18 +11,16 @@
 typedef float array_type;
 
 int main(int argc, char** argv){
-    if (argc < 4)
+    if (argc < 3)
     {
         std::cout << "Usage: " 
                   << argv[0] 
-                  << " <array length> <stream count> <benchmark repeats> "
-                  << "-v(optional)\n";
+                  << " <array length> <benchmark repeats> -v(optional)\n";
         exit(EXIT_FAILURE);
     } 
 
     unsigned long int array_len = strtoul(argv[1], NULL, 0);
-    unsigned int stream_count = atoi(argv[2]);
-    unsigned int runs = atoi(argv[3]);
+    unsigned int runs = atoi(argv[2]);
     bool validating = false;
     struct timeval start_time;
     struct timeval end_time;
@@ -40,9 +38,7 @@ int main(int argc, char** argv){
               << array_len 
               << " (" 
               << datasize 
-              <<"GB) and " 
-              << stream_count
-              <<" streams\n";
+              <<"GB)\n";
     if (validating) {
         std::cout << "Will validate output\n";
     }
@@ -183,20 +179,18 @@ int main(int argc, char** argv){
         std::cout << "*** Benchmarking multi GPU w/ Steams map ***\n";
 
         cudaStream_t* streams = (cudaStream_t*)calloc(
-            stream_count*device_count, sizeof(cudaStream_t)
+            device_count, sizeof(cudaStream_t)
         );
         for (int device=0; device<device_count; device++) {
             CCC(cudaSetDevice(device));
-            for(int s = device*stream_count; s<(device+1)*stream_count; s++) {
-                cudaStreamCreate(&streams[s]);
-            }
+            cudaStreamCreate(&streams[device]);
         }
         CCC(cudaSetDevice(origin_device));
 
         std::cout << "  Running a warmup\n";
         multiGpuStreamMapping(
             multiGpuStreamKernel<array_type>, input_array, constant, 
-            output_array, array_len, streams, stream_count
+            output_array, array_len, streams, device_count
         );
         CCC(cudaEventRecord(end_event));
         CCC(cudaEventSynchronize(end_event));
@@ -205,7 +199,7 @@ int main(int argc, char** argv){
             CCC(cudaEventRecord(start_event));
             multiGpuStreamMapping(
                 multiGpuStreamKernel<array_type>, input_array, constant, 
-                output_array, array_len, streams, stream_count
+                output_array, array_len, streams, device_count
             );
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event)); 
