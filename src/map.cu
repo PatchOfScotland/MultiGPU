@@ -1,4 +1,5 @@
 #include <functional>
+#include <sys/time.h>
 
 #include "map/cpu.h"
 #include "map/multiGPU.h"
@@ -23,6 +24,10 @@ int main(int argc, char** argv){
     unsigned int stream_count = atoi(argv[2]);
     unsigned int runs = atoi(argv[3]);
     bool validating = false;
+    struct timeval start_time;
+    struct timeval end_time;
+
+    gettimeofday(&start_time, NULL); 
 
     for (int i=0; i<argc; i++) {
         if (strcmp(argv[i], "-v") == 0) {
@@ -37,7 +42,7 @@ int main(int argc, char** argv){
               << datasize 
               <<"GB) and " 
               << stream_count
-              <<" stream\n";
+              <<" streams\n";
     if (validating) {
         std::cout << "Will validate output\n";
     }
@@ -67,6 +72,11 @@ int main(int argc, char** argv){
 
     std::cout << "Initialising input array\n";
     init_array(input_array, array_len);
+
+    gettimeofday(&end_time, NULL); 
+
+    long int setup_time = end_time.tv_sec - start_time.tv_sec;
+    std::cout << "Setup took " << setup_time << " seconds\n";
 
     if (validating) { // Populate validation array
         std::cout << "Getting CPU result for validation\n";
