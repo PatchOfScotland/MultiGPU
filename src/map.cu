@@ -107,7 +107,11 @@ int main(int argc, char** argv){
                 output_array, array_len
             );
             CCC(cudaEventRecord(end_event));
-            CCC(cudaEventSynchronize(end_event)); 
+            CCC(cudaEventSynchronize(end_event));
+            if (cuda_assert(cudaPeekAtLastError())) {
+                std::cout << "\n";
+                break;
+            }
 
             CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
             timing_ms[run] = runtime;
@@ -139,7 +143,7 @@ int main(int argc, char** argv){
             array_len
         );
         CCC(cudaEventRecord(end_event));
-        CCC(cudaEventSynchronize(end_event));        
+        CCC(cudaEventSynchronize(end_event));
 
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
@@ -148,7 +152,11 @@ int main(int argc, char** argv){
                 array_len
             );
             CCC(cudaEventRecord(end_event));
-            CCC(cudaEventSynchronize(end_event)); 
+            CCC(cudaEventSynchronize(end_event));
+            if (cuda_assert(cudaPeekAtLastError())) {
+                std::cout << "\n";
+                break;
+            }
 
             CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
             timing_ms[run] = runtime;
@@ -186,15 +194,25 @@ int main(int argc, char** argv){
         CCC(cudaSetDevice(origin_device));
 
         std::cout << "  Running a warmup\n";
-        multiGpuStreamMapping(multiGpuStreamKernel<array_type>, input_array, constant, output_array, array_len, streams, stream_count);
+        multiGpuStreamMapping(
+            multiGpuStreamKernel<array_type>, input_array, constant, 
+            output_array, array_len, streams, stream_count
+        );
         CCC(cudaEventRecord(end_event));
-        CCC(cudaEventSynchronize(end_event));        
+        CCC(cudaEventSynchronize(end_event));
 
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
-            multiGpuStreamMapping(multiGpuStreamKernel<array_type>, input_array, constant, output_array, array_len, streams, stream_count);
+            multiGpuStreamMapping(
+                multiGpuStreamKernel<array_type>, input_array, constant, 
+                output_array, array_len, streams, stream_count
+            );
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event)); 
+            if (cuda_assert(cudaPeekAtLastError())) {
+                std::cout << "\n";
+                break;
+            }
 
             CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
             timing_ms[run] = runtime;
@@ -207,7 +225,8 @@ int main(int argc, char** argv){
                 if(compare_arrays(validation_array, output_array, array_len)){
                     std::cout << "  Result is correct\n";
                 } else {
-                    std::cout << "  Result is incorrect. Skipping any subsequent runs\n";
+                    std::cout << "  Result is incorrect. Skipping any "
+                              << "subsequent runs\n";
                     break;
                 }
             }
@@ -254,7 +273,7 @@ int main(int argc, char** argv){
             array_len
         );
         CCC(cudaEventRecord(end_event));
-        CCC(cudaEventSynchronize(end_event));        
+        CCC(cudaEventSynchronize(end_event));
 
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
@@ -263,7 +282,11 @@ int main(int argc, char** argv){
                 array_len
             );
             CCC(cudaEventRecord(end_event));
-            CCC(cudaEventSynchronize(end_event)); 
+            CCC(cudaEventSynchronize(end_event));
+            if (cuda_assert(cudaPeekAtLastError())) {
+                std::cout << "\n";
+                break;
+            }
 
             CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
             timing_ms[run] = runtime;

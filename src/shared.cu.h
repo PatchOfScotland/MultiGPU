@@ -32,6 +32,14 @@ size_t block_size = 1024;
         }                                               \
     }
 
+int cuda_assert(cudaError_t code) {
+  if(code != cudaSuccess) {
+    std::cout << "GPU Error: " << cudaGetErrorString(code) << "\n";
+    return 1;
+  }
+  return 0;
+}
+
 void check_device_count() {
     int device_count;
     CCC(cudaGetDeviceCount(&device_count));

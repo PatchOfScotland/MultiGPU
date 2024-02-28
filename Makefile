@@ -9,7 +9,7 @@ map:
 
 map_bench:
 	make map
-	./build/map 1000000000 3 25 -v
+	./build/map 1000000000 3 100 -v
 
 clean:
 	rm -f build/$(PROGRAMS)

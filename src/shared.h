@@ -8,7 +8,7 @@ const auto processor_count = std::thread::hardware_concurrency();
 void init_array(float* arr, size_t n) {
     srand(5454);
     #pragma omp parallel for
-    for(int i=0; i<n; i++){
+    for(int i=0; i<n; i++) {
         arr[i] = (float)rand() / RAND_MAX;
     }
 }
