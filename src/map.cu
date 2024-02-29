@@ -310,8 +310,8 @@ int main(int argc, char** argv){
     std::cout << "\n";
 
     if (validating) {
-            free(validation_array);
-        }
+        free(validation_array);
+    }
     cudaFree(input_array);
     cudaFree(output_array);
 }
