@@ -22,10 +22,6 @@ int main(int argc, char** argv){
     unsigned long int array_len = strtoul(argv[1], NULL, 0);
     unsigned int runs = atoi(argv[2]);
     bool validating = false;
-    struct timeval start_time;
-    struct timeval end_time;
-
-    gettimeofday(&start_time, NULL); 
 
     for (int i=0; i<argc; i++) {
         if (strcmp(argv[i], "-v") == 0) {
@@ -52,7 +48,10 @@ int main(int argc, char** argv){
     array_type constant = 0.1;
     cudaEvent_t start_event;
     cudaEvent_t end_event;
-    float runtime;
+    float runtime_ms;
+    long int cpu_time_ms = -1;
+    long int single_gpu_time_ms = -1;
+    long int multi_gpu_time_ms = -1;
 
     CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
     CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
@@ -69,24 +68,29 @@ int main(int argc, char** argv){
     std::cout << "Initialising input array\n";
     init_array(input_array, array_len);
 
-    gettimeofday(&end_time, NULL); 
-
-    long int setup_time = end_time.tv_sec - start_time.tv_sec;
-    std::cout << "Setup took " << setup_time << " seconds\n";
-
     if (validating) { // Populate validation array
         std::cout << "Getting CPU result for validation\n";
+
+        struct timeval cpu_start_time;
+        struct timeval cpu_end_time;
+
+        gettimeofday(&cpu_start_time, NULL); 
         validation_array = (array_type*)malloc(array_len*sizeof(array_type));
         cpuMapping(
             PlusConst<array_type>, input_array, constant, validation_array, 
             array_len
-        );
+        );    
+        gettimeofday(&cpu_end_time, NULL); 
+
+        cpu_time_ms = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
+            - (cpu_start_time.tv_usec+(1e6*cpu_start_time.tv_sec));
+        std::cout << "CPU mapping took: " << cpu_time_ms << "ms\n";
     }
 
     check_device_count();
 
     { // Benchmark a single GPU
-        std::cout << "*** Benchmarking single GPU map ***\n";
+        std::cout << "\nBenchmarking single GPU map ************\n";
 
         std::cout << "  Running a warmup\n";
         singleGpuMapping(
@@ -109,8 +113,8 @@ int main(int argc, char** argv){
                 break;
             }
 
-            CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
-            timing_ms[run] = runtime;
+            CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
+            timing_ms[run] = runtime_ms;
 
             print_loop_feedback(run, runs);
 
@@ -127,11 +131,14 @@ int main(int argc, char** argv){
             }
         }
 
-        print_timing_stats(timing_ms, runs, datasize);
+         single_gpu_time_ms = print_timing_stats(
+            timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms, 
+            multi_gpu_time_ms
+        );
     }
 
     { // Benchmark multiple GPUs
-        std::cout << "*** Benchmarking multi GPU map ***\n";
+        std::cout << "\nBenchmarking multi GPU map ************\n";
 
         std::cout << "  Running a warmup\n";
         multiGpuMapping(
@@ -154,8 +161,8 @@ int main(int argc, char** argv){
                 break;
             }
 
-            CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
-            timing_ms[run] = runtime;
+            CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
+            timing_ms[run] = runtime_ms;
 
             print_loop_feedback(run, runs);
 
@@ -172,11 +179,14 @@ int main(int argc, char** argv){
             }
         }
 
-        print_timing_stats(timing_ms, runs, datasize);
+        multi_gpu_time_ms = print_timing_stats(
+            timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms, 
+            multi_gpu_time_ms
+        );
     }
 
     { // Benchmark multiple GPUs w/ Streams
-        std::cout << "*** Benchmarking multi GPU w/ Steams map ***\n";
+        std::cout << "\nBenchmarking multi GPU w/ Steams map ************\n";
 
         cudaStream_t* streams = (cudaStream_t*)calloc(
             device_count, sizeof(cudaStream_t)
@@ -208,8 +218,8 @@ int main(int argc, char** argv){
                 break;
             }
 
-            CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
-            timing_ms[run] = runtime;
+            CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
+            timing_ms[run] = runtime_ms;
 
             print_loop_feedback(run, runs);
 
@@ -226,13 +236,16 @@ int main(int argc, char** argv){
             }
         }
 
-        print_timing_stats(timing_ms, runs, datasize);
+        print_timing_stats(
+            timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms,
+            multi_gpu_time_ms
+        );
 
         free(streams);
     }
 
     { // Benchmark multiple GPUs with hints
-        std::cout << "*** Benchmarking multi GPU map with hints ***\n";
+        std::cout << "\nBenchmarking multi GPU map with hints ************\n";
 
         int origin_device;
         CCC(cudaGetDevice(&origin_device));
@@ -282,8 +295,8 @@ int main(int argc, char** argv){
                 break;
             }
 
-            CCC(cudaEventElapsedTime(&runtime, start_event, end_event));
-            timing_ms[run] = runtime;
+            CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
+            timing_ms[run] = runtime_ms;
 
             print_loop_feedback(run, runs);
 
@@ -300,8 +313,13 @@ int main(int argc, char** argv){
             }
         }
 
-        print_timing_stats(timing_ms, runs, datasize);
+        print_timing_stats(
+            timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms,
+            multi_gpu_time_ms
+        );
     }
+
+    std::cout << "\n";
 
     if (validating) {
             free(validation_array);

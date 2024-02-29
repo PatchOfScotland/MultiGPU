@@ -34,7 +34,9 @@ bool compare_arrays(T* array_1, T* array_2, size_t array_len){
 }
 
 template<class T>
-void print_timing_array(T* timing_array, size_t array_len, std::string units) {
+void print_timing_array(
+    T* timing_array, size_t array_len, std::string units
+) {
     T total = 0;
     T min = timing_array[0];
     T max = timing_array[0];
@@ -62,10 +64,12 @@ void print_timing_array(T* timing_array, size_t array_len, std::string units) {
     std::cout << "\tMean:  " << total/array_len << units << "\n";
 }
 
-void print_timing_stats(
-    float* timing_array, size_t array_len, double data_gigabytes
+float print_timing_stats(
+    float* timing_array, size_t array_len, double data_gigabytes, 
+    float cpu_runtime_ms, float single_gpu_runtime_ms, 
+    float multi_gpu_runtime_ms
 ) {
-    float mean = 0;
+    float mean_ms = 0;
     float min = timing_array[0];
     float max = timing_array[0];
     float total = 0;
@@ -79,15 +83,31 @@ void print_timing_stats(
             max = timing_array[i];
         }
     }
-    mean = total/array_len;
+    mean_ms = total/array_len;
 
-    float mean_seconds = mean * 1e-3f;
+    float mean_seconds = mean_ms * 1e-3f;
     float gigabytes_per_second = (float)data_gigabytes / mean_seconds;
     std::cout << "    Total runtime: " << total <<"ms\n";
     std::cout << "    Min runtime:   " << min <<"ms\n";
     std::cout << "    Max runtime:   " << max <<"ms\n";
-    std::cout << "    Mean runtime:  " << mean <<"ms\n";
+    std::cout << "    Mean runtime:  " << mean_ms <<"ms\n";
     std::cout << "    Throughput:    " << gigabytes_per_second <<"GB/sec\n";
+    if (cpu_runtime_ms != -1) {
+        std::cout << "      Speedup vs CPU:        x" 
+                  << cpu_runtime_ms / mean_ms
+                  <<"\n";
+    }
+    if (single_gpu_runtime_ms != -1) {
+        std::cout << "      Speedup vs single GPU: x" 
+                  << single_gpu_runtime_ms / mean_ms 
+                  <<"\n";        
+    }
+    if (multi_gpu_runtime_ms != -1) {
+        std::cout << "      Speedup vs multi GPU:  x" 
+                  << multi_gpu_runtime_ms / mean_ms
+                  <<"\n";
+    }
+    return mean_ms;
 }
 
 void print_loop_feedback(int run, int runs) {
