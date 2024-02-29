@@ -13,31 +13,12 @@
 size_t block_size = 1024;
 
 // Checking Cuda Call
-#define CCC(call)                                       \
-    {                                                   \
-        cudaError_t cudaStatus = call;                  \
-        if (cudaSuccess != cudaStatus) {                \
-            std::cerr << "ERROR: CUDA RT call \""       \
-                      << #call                          \
-                      << "\" in line "                  \
-                      << __LINE__                       \
-                      << " of file "                    \
-                      << __FILE__                       \
-                      << " failed with "                \
-                      << cudaGetErrorString(cudaStatus) \
-                      << " ("                           \
-                      << cudaStatus                     \
-                      <<").\n",                         \
-            exit(cudaStatus);                           \
-        }                                               \
-    }
+#define CCC(ans) { cuda_assert((ans), __FILE__, __LINE__); }
 
-#define cuda_error_check(ans) { cuda_assert((ans), __FILE__, __LINE__); }
-
-inline void cuda_assert(cudaError_t code, const char *file, int line, bool abort=true)
-{
-    if (code != cudaSuccess) 
-    {
+inline void cuda_assert(
+    cudaError_t code, const char *file, int line, bool abort=true
+) {
+    if (code != cudaSuccess) {
         std::cerr << "\nCUDA call at line " 
                   << line
                   << " of file " 
