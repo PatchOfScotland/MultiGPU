@@ -108,10 +108,7 @@ int main(int argc, char** argv){
             );
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event));
-            if (cuda_assert(cudaPeekAtLastError())) {
-                std::cout << "\n";
-                break;
-            }
+            cuda_error_check(cudaPeekAtLastError());
 
             CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
             timing_ms[run] = runtime_ms;
@@ -156,10 +153,7 @@ int main(int argc, char** argv){
             );
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event));
-            if (cuda_assert(cudaPeekAtLastError())) {
-                std::cout << "\n";
-                break;
-            }
+            cuda_error_check(cudaPeekAtLastError());
 
             CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
             timing_ms[run] = runtime_ms;
@@ -213,10 +207,7 @@ int main(int argc, char** argv){
             );
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event)); 
-            if (cuda_assert(cudaPeekAtLastError())) {
-                std::cout << "\n";
-                break;
-            }
+            cuda_error_check(cudaPeekAtLastError());
 
             CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
             timing_ms[run] = runtime_ms;
@@ -290,10 +281,7 @@ int main(int argc, char** argv){
             );
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event));
-            if (cuda_assert(cudaPeekAtLastError())) {
-                std::cout << "\n";
-                break;
-            }
+            cuda_error_check(cudaPeekAtLastError());
 
             CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
             timing_ms[run] = runtime_ms;

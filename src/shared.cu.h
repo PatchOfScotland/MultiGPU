@@ -32,12 +32,23 @@ size_t block_size = 1024;
         }                                               \
     }
 
-int cuda_assert(cudaError_t code) {
-  if(code != cudaSuccess) {
-    std::cout << "GPU Error: " << cudaGetErrorString(code) << "\n";
-    return 1;
-  }
-  return 0;
+#define cuda_error_check(ans) { cuda_assert((ans), __FILE__, __LINE__); }
+
+inline void cuda_assert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+    if (code != cudaSuccess) 
+    {
+        std::cerr << "\nCUDA call at line " 
+                  << line
+                  << " of file " 
+                  << file
+                  << " failed: " 
+                  << cudaGetErrorString(code) 
+                  << "\n";
+        if (abort == true) {
+            exit(code);
+        }
+    }
 }
 
 void check_device_count() {
