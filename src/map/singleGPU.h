@@ -1,5 +1,5 @@
 template<typename T>
-__global__ void singleGpuKernel(
+__global__ void singleGpuMappingKernel(
     const T* input_array, const T x, T* output_array, const int array_len
 ) {
     size_t index = blockDim.x * blockIdx.x + threadIdx.x;

@@ -94,7 +94,7 @@ int main(int argc, char** argv){
 
         std::cout << "  Running a warmup\n";
         singleGpuMapping(
-            singleGpuKernel<array_type>, input_array, constant, output_array, 
+            singleGpuMappingKernel<array_type>, input_array, constant, output_array, 
             array_len
         );
         CCC(cudaEventRecord(end_event));
@@ -103,7 +103,7 @@ int main(int argc, char** argv){
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
             singleGpuMapping(
-                singleGpuKernel<array_type>, input_array, constant, 
+                singleGpuMappingKernel<array_type>, input_array, constant, 
                 output_array, array_len
             );
             CCC(cudaEventRecord(end_event));
@@ -139,7 +139,7 @@ int main(int argc, char** argv){
 
         std::cout << "  Running a warmup\n";
         multiGpuMapping(
-            multiGpuKernel<array_type>, input_array, constant, output_array, 
+            multiGpuMappingKernel<array_type>, input_array, constant, output_array, 
             array_len
         );
         CCC(cudaEventRecord(end_event));
@@ -148,7 +148,7 @@ int main(int argc, char** argv){
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
             multiGpuMapping(
-                multiGpuKernel<array_type>, input_array, constant, output_array,
+                multiGpuMappingKernel<array_type>, input_array, constant, output_array,
                 array_len
             );
             CCC(cudaEventRecord(end_event));
@@ -193,7 +193,7 @@ int main(int argc, char** argv){
 
         std::cout << "  Running a warmup\n";
         multiGpuStreamMapping(
-            multiGpuStreamKernel<array_type>, input_array, constant, 
+            multiGpuStreamMappingKernel<array_type>, input_array, constant, 
             output_array, array_len, streams, device_count
         );
         CCC(cudaEventRecord(end_event));
@@ -202,7 +202,7 @@ int main(int argc, char** argv){
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
             multiGpuStreamMapping(
-                multiGpuStreamKernel<array_type>, input_array, constant, 
+                multiGpuStreamMappingKernel<array_type>, input_array, constant, 
                 output_array, array_len, streams, device_count
             );
             CCC(cudaEventRecord(end_event));
@@ -267,7 +267,7 @@ int main(int argc, char** argv){
 
         std::cout << "  Running a warmup\n";
         multiGpuMapping(
-            multiGpuKernel<array_type>, input_array, constant, output_array, 
+            multiGpuMappingKernel<array_type>, input_array, constant, output_array, 
             array_len
         );
         CCC(cudaEventRecord(end_event));
@@ -276,7 +276,7 @@ int main(int argc, char** argv){
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
             multiGpuMapping(
-                multiGpuKernel<array_type>, input_array, constant, output_array,
+                multiGpuMappingKernel<array_type>, input_array, constant, output_array,
                 array_len
             );
             CCC(cudaEventRecord(end_event));

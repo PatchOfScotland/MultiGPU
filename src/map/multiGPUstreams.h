@@ -1,7 +1,7 @@
 #include "../shared.cu.h"
 
 template<typename T>
-__global__ void multiGpuStreamKernel(
+__global__ void multiGpuStreamMappingKernel(
     const T* input_array, const T x, T* output_array, const int array_len, 
     const int stream_num
 ) {
