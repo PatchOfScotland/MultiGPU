@@ -44,7 +44,7 @@ int main(int argc, char** argv){
 
     array_type* input_array;
     array_type* output;
-    array_type* validation;
+    array_type validation_result;
     array_type constant = 0.1;
     cudaEvent_t start_event;
     cudaEvent_t end_event;
@@ -67,6 +67,26 @@ int main(int argc, char** argv){
 
     std::cout << "Initialising input array\n";
     init_array(input_array, array_len);
+
+    if (validating) { // Populate validation array
+        std::cout << "Getting CPU result for validation\n";
+
+        struct timeval cpu_start_time;
+        struct timeval cpu_end_time;
+
+        gettimeofday(&cpu_start_time, NULL);
+
+        cpuReduction(
+            reduction<array_type>, input_array, &validation_result, array_len
+        );    
+        gettimeofday(&cpu_end_time, NULL); 
+
+        cpu_time_ms = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
+            - (cpu_start_time.tv_usec+(1e6*cpu_start_time.tv_sec));
+        std::cout << "CPU reduction took: " << cpu_time_ms << "ms\n";
+    }
+
+    std::cout << "Validation result is: " << validation_result << "\n";
 
     cudaFree(input_array);
     cudaFree(output);

@@ -34,12 +34,7 @@ bool compare_arrays(T* array_1, T* array_2, size_t array_len){
 }
 
 template<class T>
-void print_timing_array(
-    T* timing_array, size_t array_len, std::string units
-) {
-    T total = 0;
-    T min = timing_array[0];
-    T max = timing_array[0];
+void print_array(T* timing_array, size_t array_len) {
     for (int i=0; i<array_len; i++) {
         if (i==0) {
             std::cout << timing_array[i];
@@ -50,18 +45,7 @@ void print_timing_array(
         else {
             std::cout << ", " << timing_array[i];
         }
-        total = total + timing_array[i];
-        if (timing_array[i] < min) {
-            min = timing_array[i];
-        }
-        if (timing_array[i] > max) {
-            max = timing_array[i];
-        }
     }
-    std::cout << "\tTotal: " << total << units << "\n";
-    std::cout << "\tMin:   " << min << units << "\n";
-    std::cout << "\tMax:   " << max << units << "\n";
-    std::cout << "\tMean:  " << total/array_len << units << "\n";
 }
 
 float print_timing_stats(
