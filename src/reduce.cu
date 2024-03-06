@@ -45,7 +45,6 @@ int main(int argc, char** argv){
     array_type* input_array;
     array_type* output;
     array_type validation_result;
-    array_type constant = 0.1;
     cudaEvent_t start_event;
     cudaEvent_t end_event;
     float runtime_ms;
@@ -87,6 +86,64 @@ int main(int argc, char** argv){
     }
 
     std::cout << "Validation result is: " << validation_result << "\n";
+
+    check_device_count();
+
+    { // Benchmark a single GPU
+        std::cout << "\nBenchmarking single GPU map **********************\n";
+
+        std::cout << "  Running a warmup\n";
+        singleGpuReduction(
+            singleGpuReductionKernel<array_type>, input_array, output, 
+            array_len
+        );
+        CCC(cudaEventRecord(end_event));
+        CCC(cudaEventSynchronize(end_event));
+
+        for (int run=0; run<runs; run++) {
+            CCC(cudaEventRecord(start_event));
+            singleGpuReduction(
+                singleGpuReductionKernel<array_type>, input_array, output, 
+                array_len 
+            );
+            CCC(cudaEventRecord(end_event));
+            CCC(cudaEventSynchronize(end_event));
+            CCC(cudaPeekAtLastError());
+
+            CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
+            timing_ms[run] = runtime_ms;
+
+            print_loop_feedback(run, runs);
+
+            // do this at the end as reading output array will shift it back to 
+            // the host
+            if (validating && run==runs-1) {
+                array_type tolerance = array_len / 1e6;
+                std::cout << "  Comparing " 
+                          << std::setprecision(12) 
+                          << validation_result 
+                          << " and " 
+                          << std::setprecision(12) 
+                          << *output 
+                          << " with tolerance of " 
+                          << tolerance 
+                          << "\n";
+                // Very much rough guess
+                if (in_range(validation_result, *output, tolerance)) {
+                    std::cout << "  Result is correct\n";
+                } else {
+                    std::cout << "  Result is incorrect. Skipping any "
+                              << "subsequent runs\n";
+                    break;
+                }
+            }
+        }
+
+         single_gpu_time_ms = print_timing_stats(
+            timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms, 
+            multi_gpu_time_ms
+        );
+    }
 
     cudaFree(input_array);
     cudaFree(output);

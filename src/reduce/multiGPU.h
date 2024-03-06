@@ -1,7 +1,7 @@
 #include "../shared.cu.h"
 
 template<typename T>
-__global__ void multiGpuKernel(
+__global__ void multiGpuReductionKernel(
     const T* input_array, const T x, T* output_array, const int array_len, 
     const int device_num
 ) {

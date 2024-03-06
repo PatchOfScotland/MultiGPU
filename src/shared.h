@@ -1,6 +1,7 @@
 #ifndef SHARED_H
 #define SHARED_H
 
+#include <iomanip>
 #include <thread>
 
 const auto processor_count = std::thread::hardware_concurrency();
@@ -104,6 +105,15 @@ void print_loop_feedback(int run, int runs) {
     if (run==runs-1) {
         std::cout << "\n";
     }
+}
+
+template<class T>
+bool in_range(T num1, T num2, T tolerance) {
+    T absolute_diff = (num1 > num2) ? (num1 - num2): (num2 - num1);
+    if (absolute_diff <= tolerance) {
+        return true;
+    }
+    return false;
 }
 
 #endif
