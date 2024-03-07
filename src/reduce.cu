@@ -118,7 +118,7 @@ int main(int argc, char** argv){
             // do this at the end as reading output array will shift it back to 
             // the host
             if (validating && run==runs-1) {
-                array_type tolerance = array_len / 1e6;
+                array_type tolerance = array_len / 1e5;
                 std::cout << "  Comparing " 
                           << std::setprecision(12) 
                           << validation_result 

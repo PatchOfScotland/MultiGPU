@@ -2,34 +2,68 @@
 // based off solutions in https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf
 template<typename T>
 __global__ void singleGpuReductionKernel(
-    const T* input_array, T* accumulator, const int array_len
+    const T* input_array, const int array_len, const int load_stride, 
+    volatile T* global_results
 ) {
-    // Each thread responsible for two indexes;
-    size_t index = (blockDim.x * blockIdx.x + threadIdx.x) * 2;
-    __shared__ T interim_results[block_size];   
+    size_t index = (blockDim.x * blockIdx.x + threadIdx.x);
+    __shared__ T per_block_results[block_size];
+    //volatile T* global_results = (T*)shared_memory;
+    T per_thread_accumulator = 0;
 
-    // must initialise shared data
-    interim_results[threadIdx.x] = 0;
-
-    __syncthreads();
-
-    // Initial grab of values and placing them in shared memory. Could 
-    if (index < array_len) {
-        interim_results[threadIdx.x] = input_array[index] 
-            + input_array[index + 1];
+    // Initial data grab. We traverse the input array by load_stride to 
+    // maximise parallel thread locality
+    for (size_t i=index; i<array_len; i+=load_stride) {
+        per_thread_accumulator += input_array[i];
     }
+
     __syncthreads();
+ 
+    per_block_results[threadIdx.x] = per_thread_accumulator;
 
     // Now start reducing further down until we have a unified result per block
     for (unsigned int stride=blockDim.x/2; stride>0; stride>>=1) {
         if (threadIdx.x < stride) {
-            interim_results[threadIdx.x] += interim_results[threadIdx.x + stride];
+            per_block_results[threadIdx.x] += per_block_results[threadIdx.x + stride];
         }
         __syncthreads();
     }
 
-    // Now each block should have an acculated result in interim_results[0]
-    accumulator[blockIdx.x] = interim_results[0];
+    // Record result to shared memory
+    if (threadIdx.x == 0) {
+        global_results[blockIdx.x] = per_block_results[0];
+    }
+}
+
+// Note, designed to only ever be run as a single block
+template<typename T>
+__global__ void singleGpuReductionKernelFinal(
+    volatile T* input_array, const int array_len, const int load_stride, 
+    T* accumulator
+) {
+    size_t index = threadIdx.x;
+    __shared__ T per_block_results[block_size];
+    T per_thread_accumulator = 0;
+
+    // Initial data grab. We traverse the input array by load_stride to 
+    // maximise parallel thread locality
+    for (size_t i=index; i<array_len; i+=load_stride) {
+        per_thread_accumulator += input_array[i];
+    
+    }
+
+    __syncthreads();
+
+    per_block_results[threadIdx.x] = per_thread_accumulator;
+    
+    // Now start reducing further down until we have a unified result per block
+    for (unsigned int stride=blockDim.x/2; stride>0; stride>>=1) {
+        if (threadIdx.x < stride) {
+            per_block_results[threadIdx.x] += per_block_results[threadIdx.x + stride];
+        }
+        __syncthreads();
+    }
+
+    *accumulator = per_block_results[0];
 }
 
 template<class T>
@@ -54,39 +88,24 @@ void singleGpuReduction(
     // Only need half as many blocks, as each starts reducing
     size_t block_count = ((array_len / 2) + block_size - 1) / block_size;
 
-    T* accumulator_array;
-    CCC(cudaMallocManaged(&accumulator_array, sizeof(T)*block_count));
+    T* global_results;
+    CCC(cudaMallocManaged(&global_results, block_size*sizeof(T)));
 
-    if (block_count == 1) {
-        mapped_kernel<<<block_count, block_size>>>(
-            input_array, accumulator_array, array_len
-        );
+    cudaEvent_t sync_event;
+    CCC(cudaEventCreate(&sync_event));
+    CCC(cudaEventRecord(sync_event));
+    CCC(cudaEventSynchronize(sync_event));
 
-        *accumulator = accumulator_array[0];
-    }
-    else if (block_count < (block_size * 2)) {
- 
-        std::cout << "scheduling " << block_count << " in the first wave\n";
- 
-        mapped_kernel<<<block_count, block_size>>>(
-            input_array, accumulator_array, array_len
-        );
+    mapped_kernel<<<block_count, block_size>>>(
+        input_array, array_len, (block_count*block_size), global_results
+    );
+    CCC(cudaEventRecord(sync_event));
+    CCC(cudaEventSynchronize(sync_event));
 
-        cudaEvent_t sync_event;
-        CCC(cudaEventCreate(&sync_event));
-        CCC(cudaEventRecord(sync_event));
-        CCC(cudaEventSynchronize(sync_event));
+    singleGpuReductionKernelFinal<<<1, block_size>>>(
+        global_results, block_count, block_size, accumulator
+    );
 
-        pa(accumulator_array, block_count);
-
-        mapped_kernel<<<1, block_count>>>(
-            accumulator_array, accumulator, block_count
-        );
-        CCC(cudaEventRecord(sync_event));
-        CCC(cudaEventSynchronize(sync_event));
-    }
-    else {
-        std::cout << "Out of range ... for now\n";
-    }
-
+    CCC(cudaEventRecord(sync_event));
+    CCC(cudaEventSynchronize(sync_event));
 }
