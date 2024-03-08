@@ -204,19 +204,20 @@ int main(int argc, char** argv){
         CCC(cudaSetDevice(origin_device));
 
         std::cout << "  Running a warmup\n";
-        multiGpuStreamMapping(
-            multiGpuStreamMappingKernel<array_type>, input_array, constant, 
-            output_array, array_len, streams, device_count
+        multiGpuStreamMapping<PlusX<array_type>>(
+            input_array, constant, output_array, array_len, streams, 
+            device_count
         );
         CCC(cudaEventRecord(end_event));
         CCC(cudaEventSynchronize(end_event));
 
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
-            multiGpuStreamMapping(
-                multiGpuStreamMappingKernel<array_type>, input_array, constant, 
-                output_array, array_len, streams, device_count
+            multiGpuStreamMapping<PlusX<array_type>>(
+                input_array, constant, output_array, array_len, streams, 
+                device_count
             );
+
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event)); 
             CCC(cudaPeekAtLastError());

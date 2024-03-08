@@ -1,22 +1,29 @@
 #include "../shared.cu.h"
 
-template<typename T>
+template<typename MappedFunction>
 __global__ void multiGpuStreamMappingKernel(
-    const T* input_array, const T x, T* output_array, const int array_len, 
+    typename MappedFunction::InputElement* input_array, 
+    typename MappedFunction::X x, 
+    typename MappedFunction::ReturnElement* output_array,
+    const int array_len, 
     const int stream_num
 ) {
     size_t index = stream_num*blockDim.x*gridDim.x 
         + blockDim.x*blockIdx.x 
         + threadIdx.x;
     if (index < array_len) {
-        output_array[index] = input_array[index] + x;
+        output_array[index] = MappedFunction::apply(input_array[index], x);
     }
 }
 
-template<typename F, typename T>
+template<typename MappedFunction>
 void multiGpuStreamMapping(
-    F mapped_kernel, const T* input_array, const T constant, T* output_array, 
-    const int array_len, const cudaStream_t* streams, const int stream_count
+    typename MappedFunction::InputElement* input_array, 
+    typename MappedFunction::X x, 
+    typename MappedFunction::ReturnElement* output_array, 
+    const int array_len, 
+    const cudaStream_t* streams, 
+    const int stream_count
 ) {  
     int origin_device;
     CCC(cudaGetDevice(&origin_device));
@@ -28,8 +35,10 @@ void multiGpuStreamMapping(
 
     for (int device=0; device<device_count; device++) {
         CCC(cudaSetDevice(device))
-        mapped_kernel<<<dev_block_count, block_size, 0, streams[device]>>>(
-            input_array, constant, output_array, array_len, device
+        multiGpuStreamMappingKernel<MappedFunction><<<
+            dev_block_count, block_size, 0, streams[device]
+        >>>(
+            input_array, x, output_array, array_len, device
         );
     }
 
