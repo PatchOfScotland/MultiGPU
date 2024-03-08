@@ -10,6 +10,20 @@
 
 typedef float array_type;
 
+template<typename T>
+class Add {
+    public:
+        typedef T InputElement;
+        typedef T ReturnElement;
+
+        static __device__ __host__ ReturnElement apply(
+            const InputElement i, const ReturnElement r
+        ) {
+            return i+r;
+        };
+};
+
+
 int main(int argc, char** argv){
     if (argc < 3)
     {
@@ -93,18 +107,16 @@ int main(int argc, char** argv){
         std::cout << "\nBenchmarking single GPU map **********************\n";
 
         std::cout << "  Running a warmup\n";
-        singleGpuReduction(
-            singleGpuReductionKernel<array_type>, input_array, output, 
-            array_len
+        singleGpuReduction<Add<array_type>,array_type>(
+            input_array, output, array_len
         );
         CCC(cudaEventRecord(end_event));
         CCC(cudaEventSynchronize(end_event));
 
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
-            singleGpuReduction(
-                singleGpuReductionKernel<array_type>, input_array, output, 
-                array_len 
+            singleGpuReduction<Add<array_type>,array_type>(
+                input_array, output, array_len
             );
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event));

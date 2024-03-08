@@ -17,7 +17,6 @@ cudaError_t singleGpuMapping(
     typename MappedFunction::X x, 
     typename MappedFunction::ReturnElement* output_array, 
     const int array_len
-
 ) {  
     size_t block_count = (array_len + block_size - 1) / block_size;
     
