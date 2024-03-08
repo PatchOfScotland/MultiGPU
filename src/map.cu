@@ -10,6 +10,21 @@
 
 typedef float array_type;
 
+template<typename T>
+class PlusX {
+    public:
+        typedef T InputElement;
+        typedef T X;
+        typedef T ReturnElement;
+
+        static __device__ __host__ ReturnElement apply(
+            const InputElement i, const X x
+        ) {
+            return i+x;
+        };
+};
+
+
 int main(int argc, char** argv){
     if (argc < 3)
     {
@@ -93,18 +108,16 @@ int main(int argc, char** argv){
         std::cout << "\nBenchmarking single GPU map **********************\n";
 
         std::cout << "  Running a warmup\n";
-        singleGpuMapping(
-            singleGpuMappingKernel<array_type>, input_array, constant, output_array, 
-            array_len
+        singleGpuMapping<PlusX<array_type>>(
+            input_array, constant, output_array, array_len
         );
         CCC(cudaEventRecord(end_event));
         CCC(cudaEventSynchronize(end_event));
 
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
-            singleGpuMapping(
-                singleGpuMappingKernel<array_type>, input_array, constant, 
-                output_array, array_len
+            singleGpuMapping<PlusX<array_type>>(
+                input_array, constant, output_array, array_len
             );
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event));
