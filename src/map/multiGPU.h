@@ -1,21 +1,26 @@
 #include "../shared.cu.h"
 
-template<typename T>
+template<typename MappedFunction>
 __global__ void multiGpuMappingKernel(
-    const T* input_array, const T x, T* output_array, const int array_len, 
+    typename MappedFunction::InputElement* input_array, 
+    typename MappedFunction::X x, 
+    typename MappedFunction::ReturnElement* output_array, 
+    const int array_len,
     const int device_num
 ) {
     size_t index = device_num*blockDim.x*gridDim.x 
         + blockDim.x*blockIdx.x 
         + threadIdx.x;
     if (index < array_len) {
-        output_array[index] = input_array[index] + x;
+        output_array[index] = MappedFunction::apply(input_array[index], x);
     }
 }
 
-template<typename F, typename T>
+template<typename MappedFunction>
 void multiGpuMapping(
-    F mapped_kernel, const T* input_array, const T constant, T* output_array, 
+    typename MappedFunction::InputElement* input_array, 
+    typename MappedFunction::X x, 
+    typename MappedFunction::ReturnElement* output_array, 
     const int array_len
 ) {  
     int origin_device;
@@ -28,8 +33,8 @@ void multiGpuMapping(
 
     for (int device=0; device<device_count; device++) {
         CCC(cudaSetDevice(device));
-        mapped_kernel<<<dev_block_count, block_size>>>(
-            input_array, constant, output_array, array_len, device
+        multiGpuMappingKernel<MappedFunction><<<dev_block_count, block_size>>>(
+            input_array, x, output_array, array_len, device
         );
     }
 

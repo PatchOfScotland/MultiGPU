@@ -151,19 +151,18 @@ int main(int argc, char** argv){
         std::cout << "\nBenchmarking multi GPU map ***********************\n";
 
         std::cout << "  Running a warmup\n";
-        multiGpuMapping(
-            multiGpuMappingKernel<array_type>, input_array, constant, output_array, 
-            array_len
+        multiGpuMapping<PlusX<array_type>>(
+            input_array, constant, output_array, array_len
         );
         CCC(cudaEventRecord(end_event));
         CCC(cudaEventSynchronize(end_event));
 
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
-            multiGpuMapping(
-                multiGpuMappingKernel<array_type>, input_array, constant, output_array,
-                array_len
+            multiGpuMapping<PlusX<array_type>>(
+                input_array, constant, output_array, array_len
             );
+
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event));
             CCC(cudaPeekAtLastError());
@@ -279,19 +278,18 @@ int main(int argc, char** argv){
         }
 
         std::cout << "  Running a warmup\n";
-        multiGpuMapping(
-            multiGpuMappingKernel<array_type>, input_array, constant, output_array, 
-            array_len
+        multiGpuMapping<PlusX<array_type>>(
+            input_array, constant, output_array, array_len
         );
         CCC(cudaEventRecord(end_event));
         CCC(cudaEventSynchronize(end_event));
 
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
-            multiGpuMapping(
-                multiGpuMappingKernel<array_type>, input_array, constant, output_array,
-                array_len
+            multiGpuMapping<PlusX<array_type>>(
+                input_array, constant, output_array, array_len
             );
+
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event));
             CCC(cudaPeekAtLastError());

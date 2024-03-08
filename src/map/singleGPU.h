@@ -1,19 +1,18 @@
 template<typename MappedFunction>
 __global__ void singleGpuMappingKernel(
-    typename MappedFunction::InputElement* i, 
+    typename MappedFunction::InputElement* input_array, 
     typename MappedFunction::X x, 
-    typename MappedFunction::ReturnElement* r, 
+    typename MappedFunction::ReturnElement* output_array, 
     const int array_len
 ) {
     size_t index = blockDim.x * blockIdx.x + threadIdx.x;
     if (index < array_len) {
-        r[index] = MappedFunction::apply(i[index], x);
+        output_array[index] = MappedFunction::apply(input_array[index], x);
     }
 }
 
 template<typename MappedFunction>
 cudaError_t singleGpuMapping(
-    //F mapped_function,
     typename MappedFunction::InputElement* input_array, 
     typename MappedFunction::X x, 
     typename MappedFunction::ReturnElement* output_array, 
