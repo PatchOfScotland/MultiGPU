@@ -64,9 +64,9 @@ int main(int argc, char** argv){
     cudaEvent_t start_event;
     cudaEvent_t end_event;
     float runtime_ms;
-    long int cpu_time_ms = -1;
-    long int single_gpu_time_ms = -1;
-    long int multi_gpu_time_ms = -1;
+    float cpu_time_ms = -1;
+    float single_gpu_time_ms = -1;
+    float multi_gpu_time_ms = -1;
 
     CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
     CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
