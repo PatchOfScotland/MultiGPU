@@ -11,7 +11,7 @@ __global__ void multiGpuMappingKernel(
     size_t index = device_num*blockDim.x*gridDim.x 
         + blockDim.x*blockIdx.x 
         + threadIdx.x;
-    if (index < array_len) {
+    if (index < (blockDim.x * gridDim.x)) {
         output_array[index] = MappedFunction::apply(input_array[index], x);
     }
 }
