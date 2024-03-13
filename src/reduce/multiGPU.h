@@ -110,13 +110,11 @@ void per_device_management(
     multiGpuReductionKernelInitial<ReduceFunction,T><<<
         dev_block_count, block_size
     >>>(
-        input_array, array_len, (dev_block_count*block_size), device, device_count, global_results
+        input_array, array_len, (dev_block_count*block_size), device, 
+        device_count, global_results
     );
     CCC(cudaEventRecord(sync_event));
     CCC(cudaEventSynchronize(sync_event));
-    //std::cout << "load_stride: " << (dev_block_count*block_size) << "\n";
-
-    //print_array(global_results, dev_block_count);
 
     multiGpuReductionKernelFinal<ReduceFunction,T><<<1, block_size>>>(
         global_results, device_accumulator, dev_block_count, block_size
@@ -129,7 +127,6 @@ void per_device_management(
 
     cudaFree(global_results);
     cudaFree(device_accumulator);
-
 }
 
 template<typename ReduceFunction, typename T>
