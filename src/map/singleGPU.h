@@ -6,7 +6,7 @@ __global__ void singleGpuMappingKernel(
     const int array_len
 ) {
     size_t index = blockDim.x * blockIdx.x + threadIdx.x;
-    if (index < array_len) {
+    if (index < (blockDim.x * gridDim.x)) {
         output_array[index] = MappedFunction::apply(input_array[index], x);
     }
 }

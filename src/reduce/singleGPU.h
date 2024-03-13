@@ -1,10 +1,14 @@
+#ifndef SINGLE_GPU_REDUCE
+#define SINGLE_GPU_REDUCE
+
+
 #include "../shared.h"
 
 // based off solutions in https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf
 template<typename ReduceFunction, typename T>
 __global__ void singleGpuReductionKernelInitial(
     typename ReduceFunction::InputElement* input_array, 
-    const int array_len, 
+    const unsigned long int array_len, 
     const int load_stride, 
     volatile T* global_results
 ) {
@@ -83,24 +87,28 @@ template<typename ReduceFunction, typename T>
 cudaError_t singleGpuReduction(
     typename ReduceFunction::InputElement* input_array, 
     typename ReduceFunction::ReturnElement* accumulator, 
-    const int array_len
+    const unsigned long int array_len
 ) {
     // Only need half as many blocks, as each starts reducing
-    size_t block_count = ((array_len / 2) + block_size - 1) / block_size;
+    size_t block_count = (((array_len + 1) / 2) + block_size - 1) / block_size;
+    double datasize = ((block_count*sizeof(T))/1e9); 
+    std::cout << "Arraylen: " << array_len << "\n";
+    std::cout << "block_size: " << block_size << "\n";
+
+    std::cout << "Scheduling " << block_count << " blocks and allocating " << datasize << "GB\n";
 
     T* global_results;
-    CCC(cudaMallocManaged(&global_results, block_size*sizeof(T)));
+    CCC(cudaMallocManaged(&global_results, block_count*sizeof(T)));
 
     cudaEvent_t sync_event;
     CCC(cudaEventCreate(&sync_event));
-    CCC(cudaEventRecord(sync_event));
-    CCC(cudaEventSynchronize(sync_event));
 
     singleGpuReductionKernelInitial<ReduceFunction,T><<<
         block_count, block_size
     >>>(
         input_array, array_len, (block_count*block_size), global_results
     );
+
     CCC(cudaEventRecord(sync_event));
     CCC(cudaEventSynchronize(sync_event));
 
@@ -111,5 +119,9 @@ cudaError_t singleGpuReduction(
     CCC(cudaEventRecord(sync_event));
     CCC(cudaEventSynchronize(sync_event));
 
+    cudaFree(global_results);
+
     return cudaGetLastError();
 }
+
+#endif

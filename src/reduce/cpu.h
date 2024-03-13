@@ -5,7 +5,8 @@ T reduction(const T inputElement, T accumulator) {
 
 template<typename F, typename T>
 void cpuReduction(
-    F mapped_function, const T* input_array, T* output, const int array_len
+    F mapped_function, const T* input_array, T* output, 
+    const unsigned long int array_len
 ) {  
     *output = 0;
 

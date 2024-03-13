@@ -1,11 +1,11 @@
-#include "../shared.cu.h"
+#include "../shared_cuda.cu.h"
 
 template<typename MappedFunction>
 __global__ void multiGpuMappingKernel(
     typename MappedFunction::InputElement* input_array, 
     typename MappedFunction::X x, 
     typename MappedFunction::ReturnElement* output_array, 
-    const int array_len,
+    const unsigned long int array_len,
     const int device_num
 ) {
     size_t index = device_num*blockDim.x*gridDim.x 
@@ -21,7 +21,7 @@ void multiGpuMapping(
     typename MappedFunction::InputElement* input_array, 
     typename MappedFunction::X x, 
     typename MappedFunction::ReturnElement* output_array, 
-    const int array_len
+    const unsigned long int array_len
 ) {  
     int origin_device;
     CCC(cudaGetDevice(&origin_device));

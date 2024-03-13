@@ -5,7 +5,7 @@
 #include "map/multiGPU.h"
 #include "map/multiGPUstreams.h"
 #include "map/singleGPU.h"
-#include "shared.cu.h"
+#include "shared_cuda.cu.h"
 #include "shared.h"
 
 typedef float array_type;

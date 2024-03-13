@@ -11,7 +11,7 @@ T PlusConst(const T inputElement, const T x) {
 template<typename F, typename T>
 void cpuMapping(
     F mapped_function, const T* input_array, const T constant, T* output_array, 
-    const int array_len
+    const unsigned long int array_len
 ) {  
     #pragma omp parallel for
     for (int i=0; i<array_len; i++) {

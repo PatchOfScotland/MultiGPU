@@ -1,11 +1,11 @@
-#include "../shared.cu.h"
+#include "../shared_cuda.cu.h"
 
 template<typename MappedFunction>
 __global__ void multiGpuStreamMappingKernel(
     typename MappedFunction::InputElement* input_array, 
     typename MappedFunction::X x, 
     typename MappedFunction::ReturnElement* output_array,
-    const int array_len, 
+    const unsigned long int array_len, 
     const int stream_num
 ) {
     size_t index = stream_num*blockDim.x*gridDim.x 
@@ -21,7 +21,7 @@ void multiGpuStreamMapping(
     typename MappedFunction::InputElement* input_array, 
     typename MappedFunction::X x, 
     typename MappedFunction::ReturnElement* output_array, 
-    const int array_len, 
+    const unsigned long int array_len, 
     const cudaStream_t* streams, 
     const int stream_count
 ) {  
