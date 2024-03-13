@@ -156,7 +156,6 @@ cudaError_t multiGpuReduction(
     size_t block_count = (((array_len + 1) / 2) + block_size - 1) / block_size;
     size_t dev_block_count = (block_count + device_count - 1) / device_count;
 
-    //std::cout << "Scheduling " << block_count << " blocks,  " << dev_block_count << " per device\n";
     typename ReduceFunction::ReturnElement accumulators[device_count];
 
     std::thread threads[device_count];
@@ -166,19 +165,6 @@ cudaError_t multiGpuReduction(
             &accumulators[device], array_len, dev_block_count, device, 
             device_count 
         );
-
-        
-        
-        //per_device_management<ReduceFunction,T>(input_array, 
-        //    &accumulators[device], array_len, dev_block_count, device, 
-        //    device_count);
-
-        //per_device_management<ReduceFunction,T>(input_array, 
-        //    accumulators, array_len, dev_block_count, device, 
-        //    device_count);
-
-        //std::cout << "escape: " << accumulators[device] << "\n";
-
     }
 
     for (int device=0; device<device_count; device++) {
@@ -190,8 +176,6 @@ cudaError_t multiGpuReduction(
         total += accumulators[device];
     }
     *accumulator = total;
-
-    //std::cout << "Final result: " << *accumulator << "\n";
  
     CCC(cudaSetDevice(origin_device));
 
