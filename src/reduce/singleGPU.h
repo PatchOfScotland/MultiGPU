@@ -92,10 +92,8 @@ cudaError_t singleGpuReduction(
     // Only need half as many blocks, as each starts reducing
     size_t block_count = (((array_len + 1) / 2) + block_size - 1) / block_size;
     double datasize = ((block_count*sizeof(T))/1e9); 
-    std::cout << "Arraylen: " << array_len << "\n";
-    std::cout << "block_size: " << block_size << "\n";
 
-    std::cout << "Scheduling " << block_count << " blocks and allocating " << datasize << "GB\n";
+    //std::cout << "Scheduling " << block_count << " blocks and allocating " << datasize << "GB\n";
 
     T* global_results;
     CCC(cudaMallocManaged(&global_results, block_count*sizeof(T)));
