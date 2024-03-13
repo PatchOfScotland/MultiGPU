@@ -93,6 +93,46 @@ __global__ void multiGpuReductionKernelFinal(
 }
 
 template<typename ReduceFunction, typename T>
+void per_device_management(
+    T* input_array, T* accumulator, const unsigned long int array_len, 
+    const size_t dev_block_count, const int device, const int device_count 
+) {
+    CCC(cudaSetDevice(device));
+
+    T* global_results;
+    CCC(cudaMallocManaged(&global_results, dev_block_count*sizeof(T)));
+    T* device_accumulator;
+    CCC(cudaMallocManaged(&device_accumulator, sizeof(T)));
+
+    cudaEvent_t sync_event;
+    CCC(cudaEventCreate(&sync_event));
+
+    multiGpuReductionKernelInitial<ReduceFunction,T><<<
+        dev_block_count, block_size
+    >>>(
+        input_array, array_len, (dev_block_count*block_size), device, device_count, global_results
+    );
+    CCC(cudaEventRecord(sync_event));
+    CCC(cudaEventSynchronize(sync_event));
+    //std::cout << "load_stride: " << (dev_block_count*block_size) << "\n";
+
+    //print_array(global_results, dev_block_count);
+
+    multiGpuReductionKernelFinal<ReduceFunction,T><<<1, block_size>>>(
+        global_results, device_accumulator, dev_block_count, block_size
+    );
+
+    CCC(cudaEventRecord(sync_event));
+    CCC(cudaEventSynchronize(sync_event));
+
+    *accumulator = *device_accumulator;
+
+    cudaFree(global_results);
+    cudaFree(device_accumulator);
+
+}
+
+template<typename ReduceFunction, typename T>
 cudaError_t multiGpuReduction(
     typename ReduceFunction::InputElement* input_array, 
     typename ReduceFunction::ReturnElement* accumulator, 
@@ -107,7 +147,6 @@ cudaError_t multiGpuReduction(
         );
     }
 
-
     int origin_device;
     CCC(cudaGetDevice(&origin_device));
     int device_count;
@@ -120,42 +159,32 @@ cudaError_t multiGpuReduction(
     //std::cout << "Scheduling " << block_count << " blocks,  " << dev_block_count << " per device\n";
     typename ReduceFunction::ReturnElement accumulators[device_count];
 
+    std::thread threads[device_count];
     for (int device=0; device<device_count; device++) {
-        CCC(cudaSetDevice(device));
-
-        T* global_results;
-        CCC(cudaMallocManaged(&global_results, block_count*sizeof(T)));
-        T* device_accumulator;
-        CCC(cudaMallocManaged(&device_accumulator, sizeof(T)));
-
-        cudaEvent_t sync_event;
-        CCC(cudaEventCreate(&sync_event));
-
-        multiGpuReductionKernelInitial<ReduceFunction,T><<<
-            dev_block_count, block_size
-        >>>(
-            input_array, array_len, (dev_block_count*block_size), device, device_count, global_results
-        );
-        CCC(cudaEventRecord(sync_event));
-        CCC(cudaEventSynchronize(sync_event));
-        //std::cout << "load_stride: " << (dev_block_count*block_size) << "\n";
-
-        //print_array(global_results, dev_block_count);
-
-        multiGpuReductionKernelFinal<ReduceFunction,T><<<1, block_size>>>(
-            global_results, device_accumulator, dev_block_count, block_size
+        threads[device] = std::thread(
+            per_device_management<ReduceFunction,T>, input_array, 
+            &accumulators[device], array_len, dev_block_count, device, 
+            device_count 
         );
 
-        CCC(cudaEventRecord(sync_event));
-        CCC(cudaEventSynchronize(sync_event));
+        
+        
+        //per_device_management<ReduceFunction,T>(input_array, 
+        //    &accumulators[device], array_len, dev_block_count, device, 
+        //    device_count);
 
-        accumulators[device] = *device_accumulator;
+        //per_device_management<ReduceFunction,T>(input_array, 
+        //    accumulators, array_len, dev_block_count, device, 
+        //    device_count);
 
-        cudaFree(global_results);
-        cudaFree(device_accumulator);
+        //std::cout << "escape: " << accumulators[device] << "\n";
 
-        //std::cout << "Placeholder result: " << *device_accumulator << "(" << device << ")\n";
     }
+
+    for (int device=0; device<device_count; device++) {
+        threads[device].join();        
+    }
+
     T total = 0;
     for (int device=0; device<device_count; device++) { 
         total += accumulators[device];
