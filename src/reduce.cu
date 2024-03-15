@@ -171,12 +171,38 @@ int main(int argc, char** argv){
     { // Benchmark multi GPU
         std::cout << "\nBenchmarking multi GPU reduce *********************\n";
 
+        unsigned long int per_device = array_len / device_count;
+        int remainder = array_len % device_count;
+        unsigned long int running_total = 0;
+        unsigned long int device_start;
+        unsigned long int this_block;
+        for (int device=0; device<device_count; device++) {           
+            device_start = running_total;
+            this_block = (remainder > 0) ? per_device + 1 : per_device;
+            remainder -= 1;
+            running_total += this_block;
+            
+            std::cout << "  A:" << input_array+device_start << "\n";
+            std::cout << "  B:" << this_block*sizeof(array_type) << "\n";
+            std::cout << "  B.5:" << this_block << "\n";
+            std::cout << "  C:" << cudaMemAdviseSetPreferredLocation << "\n";
+            std::cout << "  D:" << device << "\n";
+
+            CCC(cudaMemAdvise(
+                input_array+device_start, 
+                this_block*sizeof(array_type), 
+                cudaMemAdviseSetPreferredLocation, 
+                device
+            ));
+        }
+
         std::cout << "  Running a warmup\n";
         multiGpuReduction<Add<array_type,return_type>>(
             input_array, output, array_len, skip
         );
         CCC(cudaEventRecord(end_event));
         CCC(cudaEventSynchronize(end_event));
+
 
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));

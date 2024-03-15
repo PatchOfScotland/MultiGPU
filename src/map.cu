@@ -259,10 +259,11 @@ int main(int argc, char** argv){
         size_t block_count = (array_len + block_size - 1) / block_size;
         size_t dev_block_count = (block_count + device_count - 1) / device_count;
 
-        size_t array_offset = 0;
+        unsigned long int array_offset = 0;
         unsigned long int block_range;
         for (int device=0; device<device_count; device++) {
             block_range = min(dev_block_count, array_len-array_offset);
+
             CCC(cudaMemAdvise(
                 input_array+array_offset, 
                 block_range*sizeof(array_type), 

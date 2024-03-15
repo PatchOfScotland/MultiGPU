@@ -166,7 +166,6 @@ cudaError_t multiGpuReduction(
     int remainder = array_len % device_count;
     unsigned long int running_total = 0;
     unsigned long int device_start;
-    unsigned long int device_end;
     unsigned long int this_block;
 
     std::thread threads[device_count];
@@ -174,13 +173,12 @@ cudaError_t multiGpuReduction(
         device_start = running_total;
         this_block = (remainder > 0) ? per_device + 1 : per_device;
         remainder -= 1;
-        device_end = device_start + this_block;
         running_total += this_block;
 
         if (skip == false) {
             threads[device] = std::thread(
                 per_device_management<Reduction>, input_array, 
-                &accumulators[device], device_start, device_end, 
+                &accumulators[device], device_start, device_start + this_block, 
                 dev_block_count, device 
             );
         }
