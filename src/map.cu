@@ -105,7 +105,7 @@ int main(int argc, char** argv){
     check_device_count();
 
     { // Benchmark a single GPU
-        std::cout << "\nBenchmarking single GPU map **********************\n";
+        std::cout << "\nBenchmarking single GPU map ***********************\n";
 
         std::cout << "  Running a warmup\n";
         singleGpuMapping<PlusX<array_type>>(
@@ -148,7 +148,7 @@ int main(int argc, char** argv){
     }
 
     { // Benchmark multiple GPUs
-        std::cout << "\nBenchmarking multi GPU map ***********************\n";
+        std::cout << "\nBenchmarking multi GPU map ************************\n";
 
         std::cout << "  Running a warmup\n";
         multiGpuMapping<PlusX<array_type>>(
@@ -192,7 +192,7 @@ int main(int argc, char** argv){
     }
 
     { // Benchmark multiple GPUs w/ Streams
-        std::cout << "\nBenchmarking multi GPU w/ Steams map *************\n";
+        std::cout << "\nBenchmarking multi GPU w/ Steams map **************\n";
 
         cudaStream_t* streams = (cudaStream_t*)calloc(
             device_count, sizeof(cudaStream_t)
@@ -249,7 +249,7 @@ int main(int argc, char** argv){
     }
 
     { // Benchmark multiple GPUs with hints
-        std::cout << "\nBenchmarking multi GPU map with hints ************\n";
+        std::cout << "\nBenchmarking multi GPU map with hints *************\n";
 
         int origin_device;
         CCC(cudaGetDevice(&origin_device));
