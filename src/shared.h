@@ -107,9 +107,10 @@ void print_loop_feedback(int run, int runs) {
     }
 }
 
-template<class T>
+template<typename T>
 bool in_range(T num1, T num2, T tolerance) {
     T absolute_diff = (num1 > num2) ? (num1 - num2): (num2 - num1);
+
     if (absolute_diff <= tolerance) {
         return true;
     }

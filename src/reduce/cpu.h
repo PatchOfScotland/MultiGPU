@@ -1,11 +1,11 @@
-template <typename T>
-T reduction(const T inputElement, T accumulator) {
+template <typename T, typename R>
+R reduction(const T inputElement, R accumulator) {
     return inputElement + accumulator;
 }
 
-template<typename F, typename T>
+template<typename F, typename T, typename R>
 void cpuReduction(
-    F mapped_function, const T* input_array, T* output, 
+    F mapped_function, const T* input_array, R* output, 
     const unsigned long int array_len
 ) {  
     *output = 0;

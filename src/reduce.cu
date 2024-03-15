@@ -9,12 +9,13 @@
 #include "shared.h"
 
 typedef float array_type;
+typedef double return_type;
 
-template<typename T>
+template<typename I, typename R>
 class Add {
     public:
-        typedef T InputElement;
-        typedef T ReturnElement;
+        typedef I InputElement;
+        typedef R ReturnElement;
 
         static __device__ __host__ ReturnElement apply(
             const InputElement i, const ReturnElement r
@@ -29,18 +30,23 @@ int main(int argc, char** argv){
     {
         std::cout << "Usage: " 
                   << argv[0] 
-                  << " <array length> <benchmark repeats> -v(optional)\n";
+                  << " <array length> <benchmark repeats> -v(optional) -s(optional)\n";
         exit(EXIT_FAILURE);
     } 
 
     unsigned long int array_len = strtoul(argv[1], NULL, 0);
     unsigned int runs = atoi(argv[2]);
     bool validating = false;
+    bool skip = false;
 
     for (int i=0; i<argc; i++) {
         if (strcmp(argv[i], "-v") == 0) {
             validating = true;
         }
+        if (strcmp(argv[i], "-s") == 0) {
+            skip = true;
+        }
+
     }
 
     double datasize = ((array_len*sizeof(array_type))/1e9);
@@ -55,10 +61,13 @@ int main(int argc, char** argv){
     else {
         std::cout << "Skipping output validation\n";
     }
+    if (skip) {
+        std::cout << "Skipping any significant processing\n";
+    }
 
     array_type* input_array;
-    array_type* output;
-    array_type validation_result;
+    return_type* output;
+    return_type validation_result;
     cudaEvent_t start_event;
     cudaEvent_t end_event;
     float runtime_ms;
@@ -67,7 +76,7 @@ int main(int argc, char** argv){
     float multi_gpu_time_ms = -1;
 
     CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
-    CCC(cudaMallocManaged(&output, sizeof(array_type)));
+    CCC(cudaMallocManaged(&output, sizeof(return_type)));
 
     CCC(cudaEventCreate(&start_event));
     CCC(cudaEventCreate(&end_event));
@@ -79,7 +88,9 @@ int main(int argc, char** argv){
     CCC(cudaGetDeviceCount(&device_count));
 
     std::cout << "Initialising input array\n";
-    init_array(input_array, array_len);
+    if (skip == false) {
+        init_array(input_array, array_len);
+    }
 
     if (validating) { // Populate validation array
         std::cout << "Getting CPU result for validation\n";
@@ -89,16 +100,17 @@ int main(int argc, char** argv){
 
         gettimeofday(&cpu_start_time, NULL);
 
-        cpuReduction(
-            reduction<array_type>, input_array, &validation_result, array_len
-        );    
+        if (skip == false) {
+            cpuReduction(
+                reduction<array_type,return_type>, input_array, 
+                &validation_result, array_len
+            );    
+        }
         gettimeofday(&cpu_end_time, NULL); 
 
         cpu_time_ms = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
             - (cpu_start_time.tv_usec+(1e6*cpu_start_time.tv_sec));
         std::cout << "CPU reduction took: " << cpu_time_ms << "ms\n";
-
-        std::cout << "Validation result is: " << validation_result << "\n";
     }
 
     check_device_count();
@@ -107,16 +119,16 @@ int main(int argc, char** argv){
         std::cout << "\nBenchmarking single GPU reduce **********************\n";
 
         std::cout << "  Running a warmup\n";
-        singleGpuReduction<Add<array_type>,array_type>(
-            input_array, output, array_len
+        singleGpuReduction<Add<array_type,return_type>>(
+            input_array, output, array_len, skip
         );
         CCC(cudaEventRecord(end_event));
         CCC(cudaEventSynchronize(end_event));
 
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
-            singleGpuReduction<Add<array_type>,array_type>(
-                input_array, output, array_len
+            singleGpuReduction<Add<array_type,return_type>>(
+                input_array, output, array_len, skip
             );
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event));
@@ -141,7 +153,7 @@ int main(int argc, char** argv){
                           << tolerance 
                           << "\n";
                 // Very much rough guess
-                if (in_range(validation_result, *output, tolerance)) {
+                if (in_range<double>(validation_result, *output, tolerance)) {
                     std::cout << "  Result is correct\n";
                 } else {
                     std::cout << "  Result is incorrect. Skipping any "
@@ -160,17 +172,17 @@ int main(int argc, char** argv){
     { // Benchmark multi GPU
         std::cout << "\nBenchmarking multi GPU reduce **********************\n";
 
-        //std::cout << "  Running a warmup\n";
-        //multiGpuReduction<Add<array_type>,array_type>(
-        //    input_array, output, array_len
-        //);
-        //CCC(cudaEventRecord(end_event));
-        //CCC(cudaEventSynchronize(end_event));
+        std::cout << "  Running a warmup\n";
+        multiGpuReduction<Add<array_type,return_type>>(
+            input_array, output, array_len, skip
+        );
+        CCC(cudaEventRecord(end_event));
+        CCC(cudaEventSynchronize(end_event));
 
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
-            multiGpuReduction<Add<array_type>,array_type>(
-                input_array, output, array_len
+            multiGpuReduction<Add<array_type,return_type>>(
+                input_array, output, array_len, skip
             );
             CCC(cudaEventRecord(end_event));
             CCC(cudaEventSynchronize(end_event));
@@ -195,7 +207,7 @@ int main(int argc, char** argv){
                           << tolerance 
                           << "\n";
                 // Very much rough guess
-                if (in_range(validation_result, *output, tolerance)) {
+                if (in_range<double>(validation_result, *output, tolerance)) {
                     std::cout << "  Result is correct\n";
                 } else {
                     std::cout << "  Result is incorrect. Skipping any "
