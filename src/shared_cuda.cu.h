@@ -12,6 +12,7 @@
 #include "cuda_runtime_api.h"
 
 const size_t block_size = 1024;
+const size_t parallel_blocks = 65535;
 
 // Checking Cuda Call
 #define CCC(ans) { cuda_assert((ans), __FILE__, __LINE__); }

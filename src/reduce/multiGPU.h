@@ -7,7 +7,7 @@ template<typename Reduction>
 __global__ void multiGpuReductionKernelInitial(
     typename Reduction::InputElement* input_array, 
     const unsigned long int end, 
-    const int offset,
+    const unsigned long int offset,
     const int load_stride, 
     const int device_num, 
     volatile typename Reduction::ReturnElement* global_results
@@ -96,7 +96,7 @@ void per_device_management(
     const int device
 ) {
     size_t index_start = device*dev_block_count*block_size ;
-    int offset = device_start - index_start;
+    unsigned long int offset = device_start - index_start;
 
     CCC(cudaSetDevice(device));
 
@@ -144,10 +144,10 @@ cudaError_t multiGpuReduction(
     // For small enough jobs then just run on a single device
     // TODO derive this more programatically
     if (array_len < 2048) {
-    //    std::cout << "Small enough input for just a single device\n";
-    //    return singleGpuReduction<Reduction>(
-    //        input_array, accumulator, array_len
-    //    );
+        std::cout << "Small enough input for just a single device\n";
+        return singleGpuReduction<Reduction>(
+            input_array, accumulator, array_len, skip
+        );
     }
 
     int origin_device;
@@ -155,11 +155,10 @@ cudaError_t multiGpuReduction(
     int device_count;
     CCC(cudaGetDeviceCount(&device_count));
 
-    // Only need half as many blocks, as each starts reducing
-    size_t block_count = (((array_len + 1) / 24) + block_size - 1) / block_size;
+    size_t block_count = min(
+        (array_len + block_size) / block_size, parallel_blocks * device_count
+    );
     size_t dev_block_count = (block_count + device_count - 1) / device_count;
-
-    std::cout << "multi will run " << block_count << " total and " << dev_block_count << " per device each of size " << block_size << "\n";
 
     typename Reduction::ReturnElement accumulators[device_count];
 
@@ -178,13 +177,11 @@ cudaError_t multiGpuReduction(
         device_end = device_start + this_block;
         running_total += this_block;
 
-        std::cout << "device " << device << " starts: " << device_start << " ends: " << device_end << "\n";
-
         if (skip == false) {
             threads[device] = std::thread(
                 per_device_management<Reduction>, input_array, 
-                &accumulators[device], device_start, device_end, dev_block_count, 
-                device 
+                &accumulators[device], device_start, device_end, 
+                dev_block_count, device 
             );
         }
     }
@@ -197,7 +194,6 @@ cudaError_t multiGpuReduction(
 
     typename Reduction::ReturnElement total = 0;
     for (int device=0; device<device_count; device++) { 
-        std::cout << " Provisional results are: " << accumulators[device] << "\n";
         total += accumulators[device];
     }
     *accumulator = total;

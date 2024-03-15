@@ -89,8 +89,9 @@ cudaError_t singleGpuReduction(
     const unsigned long int array_len,
     bool skip
 ) {
-    // Only need half as many blocks, as each starts reducing
-    size_t block_count = (((array_len + 1) / 2) + block_size - 1) / block_size;
+    size_t block_count = min(
+        (array_len + block_size) / block_size, parallel_blocks
+    );
     double datasize = 
         ((block_count*sizeof(typename Reduction::InputElement))/1e9); 
 
@@ -98,19 +99,6 @@ cudaError_t singleGpuReduction(
     CCC(cudaMallocManaged(&global_results, 
         block_count*sizeof(typename Reduction::ReturnElement))
     );
-
-    // 2147483648 // max blocks
-    // 2441407 too many blocks?
-
-    std::cout << "single will run " 
-              << block_count 
-              << " blocks each of size " 
-              << block_size 
-              << ". Is reserving " 
-              << block_count*sizeof(typename Reduction::ReturnElement) 
-              << "(" 
-              << ((block_count*sizeof(typename Reduction::ReturnElement))/1e9) 
-              << "GB)\n";
 
     cudaEvent_t sync_event;
     CCC(cudaEventCreate(&sync_event));
