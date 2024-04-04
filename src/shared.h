@@ -8,7 +8,6 @@ const auto processor_count = std::thread::hardware_concurrency();
 
 void init_array(float* arr, size_t n) {
     srand(5454);
-    #pragma omp parallel for
     for(int i=0; i<n; i++) {
         arr[i] = (float)rand() / RAND_MAX;
     }
@@ -75,57 +74,29 @@ float print_timing_stats(
     }
     mean_ms = total/array_len;
 
-    float mean_seconds = mean_ms * 1e-3f;
-    float gigabytes_per_second = (float)data_gigabytes / mean_seconds;
+    float gigabytes_per_second = get_throughput(mean_ms, data_gigabytes);
     std::cout << "    Total runtime: " << total <<"ms\n";
     std::cout << "    Min runtime:   " << min <<"ms\n";
     std::cout << "    Max runtime:   " << max <<"ms\n";
     std::cout << "    Mean runtime:  " << mean_ms <<"ms\n";
     std::cout << "    Throughput:    " << gigabytes_per_second <<"GB/sec\n";
     
-    float runtime_speedup;
-    float throughput_speedup;
-
     if (cpu_runtime_ms != -1) {
-        runtime_speedup = cpu_runtime_ms / mean_ms;
-        throughput_speedup = get_throughput(cpu_runtime_ms, data_gigabytes) / gigabytes_per_second;
-
-        std::cout << "      Speedup vs CPU:\n" 
-                  << "        - Runtime:    x" 
+        std::cout << "      Speedup vs CPU:        x" 
                   << std::setprecision(6) 
-                  << runtime_speedup 
-                  << "\n"
-                  << "        - Throughput: x" 
-                  << std::setprecision(6) 
-                  << throughput_speedup 
+                  << cpu_runtime_ms / mean_ms 
                   << "\n";
     }
     if (single_gpu_runtime_ms != -1) {
-        runtime_speedup = single_gpu_runtime_ms / mean_ms;
-        throughput_speedup = get_throughput(single_gpu_runtime_ms, data_gigabytes) / gigabytes_per_second;
-
-        std::cout << "      Speedup vs single GPU:\n" 
-                  << "        - Runtime:    x" 
+        std::cout << "      Speedup vs single GPU: x" 
                   << std::setprecision(6) 
-                  << runtime_speedup 
-                  << "\n"
-                  << "        - Throughput: x" 
-                  << std::setprecision(6) 
-                  << throughput_speedup 
+                  << single_gpu_runtime_ms / mean_ms 
                   << "\n";
     }
     if (multi_gpu_runtime_ms != -1) {
-        runtime_speedup = multi_gpu_runtime_ms / mean_ms;
-        throughput_speedup = get_throughput(multi_gpu_runtime_ms, data_gigabytes) / gigabytes_per_second;
-
-        std::cout << "      Speedup vs multi GPU:\n" 
-                  << "        - Runtime:    x" 
+        std::cout << "      Speedup vs multi GPU:  x" 
                   << std::setprecision(6) 
-                  << runtime_speedup 
-                  << "\n"
-                  << "        - Throughput: x" 
-                  << std::setprecision(6) 
-                  << throughput_speedup 
+                  << multi_gpu_runtime_ms / mean_ms 
                   << "\n";
     }
     return mean_ms;

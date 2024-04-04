@@ -1,4 +1,4 @@
-FLAGS=-O3
+FLAGS=-Xcompiler -fopenmp -O3
 PROGRAMS=map reduce
 
 all: $(PROGRAMS)
@@ -19,5 +19,5 @@ reduce_bench:
 	make reduce
 	./build/reduce 1000000000 100 -v
 
-clean:
-	rm -f build/$(PROGRAMS)
+clean: 
+	rm -f build/*

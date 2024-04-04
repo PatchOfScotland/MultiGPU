@@ -15,6 +15,7 @@ class Add {
     public:
         typedef I InputElement;
         typedef R ReturnElement;
+        static const bool commutative = true;
 
         static __device__ __host__ ReturnElement apply(
             const InputElement i, const ReturnElement r
@@ -91,8 +92,10 @@ int main(int argc, char** argv){
         init_array(input_array, array_len);
     }
 
-    if (validating) { // Populate validation array
-        std::cout << "Getting CPU result for validation\n";
+    check_device_count();
+
+    { // Get CPU baseline
+        std::cout << "Getting CPU result\n";
 
         struct timeval cpu_start_time;
         struct timeval cpu_end_time;
@@ -110,9 +113,8 @@ int main(int argc, char** argv){
         cpu_time_ms = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
             - (cpu_start_time.tv_usec+(1e6*cpu_start_time.tv_sec));
         std::cout << "CPU reduction took: " << cpu_time_ms << "ms\n";
+        std::cout << "CPU throughput:     " << (float)datasize / cpu_time_ms << "GB/sec\n";
     }
-
-    check_device_count();
 
     { // Benchmark a single GPU
         std::cout << "\nBenchmarking single GPU reduce ********************\n";
@@ -181,12 +183,6 @@ int main(int argc, char** argv){
             this_block = (remainder > 0) ? per_device + 1 : per_device;
             remainder -= 1;
             running_total += this_block;
-            
-            std::cout << "  A:" << input_array+device_start << "\n";
-            std::cout << "  B:" << this_block*sizeof(array_type) << "\n";
-            std::cout << "  B.5:" << this_block << "\n";
-            std::cout << "  C:" << cudaMemAdviseSetPreferredLocation << "\n";
-            std::cout << "  D:" << device << "\n";
 
             CCC(cudaMemAdvise(
                 input_array+device_start, 

@@ -10,7 +10,6 @@ void cpuReduction(
 ) {  
     *output = 0;
 
-    #pragma omp parallel for reduction(+:*output)
     for (int i=0; i<array_len; i++) {
         *output = mapped_function(input_array[i], *output);
     }

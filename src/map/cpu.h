@@ -14,7 +14,29 @@ void cpuMapping(
     const unsigned long int array_len
 ) {  
     #pragma omp parallel for
-    for (int i=0; i<array_len; i++) {
+    for (unsigned long int i=0; i<array_len; i++) {
         output_array[i] = mapped_function(input_array[i], constant);
     }
+}
+
+// Checking function, does not generate any data, but takes an input and 
+// output, checking that the given input produces the given output. Used for 
+// GPU validation.
+template<typename F, typename T>
+bool cpuValidation(
+    F mapped_function, const T* input_array, const T constant, T* output_array, 
+    const unsigned long int array_len
+) {
+    unsigned long int count = 0;
+    #pragma omp parallel for
+    for (unsigned long int i=0; i<array_len; i++) {
+        if (mapped_function(input_array[i], constant) != output_array[i]) {
+            count++;
+        }
+    }
+
+    if (count == 0) {
+        return true;
+    }
+    return false;
 }

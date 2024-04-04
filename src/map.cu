@@ -59,7 +59,6 @@ int main(int argc, char** argv){
 
     array_type* input_array;
     array_type* output_array;
-    array_type* validation_array;
     array_type constant = 0.1;
     cudaEvent_t start_event;
     cudaEvent_t end_event;
@@ -71,6 +70,8 @@ int main(int argc, char** argv){
     CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
     CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
 
+    init_array(input_array, array_len);
+
     CCC(cudaEventCreate(&start_event));
     CCC(cudaEventCreate(&end_event));
     float* timing_ms = (float*)calloc(runs, sizeof(float));
@@ -80,19 +81,17 @@ int main(int argc, char** argv){
     int device_count;
     CCC(cudaGetDeviceCount(&device_count));
 
-    std::cout << "Initialising input array\n";
-    init_array(input_array, array_len);
+    check_device_count();
 
-    if (validating) { // Populate validation array
-        std::cout << "Getting CPU result for validation\n";
+    { // Get CPU baseline
+        std::cout << "Getting CPU baseline\n";
 
         struct timeval cpu_start_time;
         struct timeval cpu_end_time;
 
         gettimeofday(&cpu_start_time, NULL); 
-        validation_array = (array_type*)malloc(array_len*sizeof(array_type));
         cpuMapping(
-            PlusConst<array_type>, input_array, constant, validation_array, 
+            PlusConst<array_type>, input_array, constant, output_array, 
             array_len
         );    
         gettimeofday(&cpu_end_time, NULL); 
@@ -102,7 +101,6 @@ int main(int argc, char** argv){
         std::cout << "CPU mapping took: " << cpu_time_ms << "ms\n";
     }
 
-    check_device_count();
 
     { // Benchmark a single GPU
         std::cout << "\nBenchmarking single GPU map ***********************\n";
@@ -131,7 +129,10 @@ int main(int argc, char** argv){
             // do this at the end as reading output array will shift it back to 
             // the host
             if (validating && run==runs-1) {
-                if(compare_arrays(validation_array, output_array, array_len)){
+                if(cpuValidation(
+                    PlusConst<array_type>, input_array, constant, 
+                    output_array, array_len)
+                ){
                     std::cout << "  Result is correct\n";
                 } else {
                     std::cout << "  Result is incorrect. Skipping any "
@@ -175,7 +176,10 @@ int main(int argc, char** argv){
             // do this at the end as reading output array will shift it back to 
             // the host
             if (validating && run==runs-1) {
-                if(compare_arrays(validation_array, output_array, array_len)){
+                if(cpuValidation(
+                    PlusConst<array_type>, input_array, constant, 
+                    output_array, array_len)
+                ){
                     std::cout << "  Result is correct\n";
                 } else {
                     std::cout << "  Result is incorrect. Skipping any "
@@ -230,7 +234,10 @@ int main(int argc, char** argv){
             // do this at the end as reading output array will shift it back to 
             // the host
             if (validating && run==runs-1) {
-                if(compare_arrays(validation_array, output_array, array_len)){
+                if(cpuValidation(
+                    PlusConst<array_type>, input_array, constant, 
+                    output_array, array_len)
+                ){
                     std::cout << "  Result is correct\n";
                 } else {
                     std::cout << "  Result is incorrect. Skipping any "
@@ -304,7 +311,10 @@ int main(int argc, char** argv){
             // do this at the end as reading output array will shift it back to 
             // the host
             if (validating && run==runs-1) {
-                if(compare_arrays(validation_array, output_array, array_len)){
+                if(cpuValidation(
+                    PlusConst<array_type>, input_array, constant, 
+                    output_array, array_len)
+                ){
                     std::cout << "  Result is correct\n";
                 } else {
                     std::cout << "  Result is incorrect. Skipping any "
@@ -321,10 +331,4 @@ int main(int argc, char** argv){
     }
 
     std::cout << "\n";
-
-    if (validating) {
-        free(validation_array);
-    }
-    cudaFree(input_array);
-    cudaFree(output_array);
 }

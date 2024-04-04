@@ -1,0 +1,54 @@
+[xzb272@futharkhpa03fl MultiGPU]$ ./build/map 10000000000 20 -v
+Running array of length 10000000000 (80GB)
+Will validate output
+Getting CPU baseline
+CPU mapping took: 1.21249e+07ms
+
+Benchmarking single GPU map ***********************
+  Running a warmup
+  Completed run 20/20
+  Result is correct
+    Total runtime: 168.584ms
+    Min runtime:   8.41933ms
+    Max runtime:   8.52787ms
+    Mean runtime:  8.42921ms
+    Throughput:    9490.81GB/sec
+      Speedup vs CPU:        x1.43844e+06
+
+Benchmarking multi GPU map ************************
+  Running a warmup
+  Completed run 20/20
+  Result is correct
+    Total runtime: 51111.7ms
+    Min runtime:   28.2071ms
+    Max runtime:   9746.65ms
+    Mean runtime:  2555.59ms
+    Throughput:    31.304GB/sec
+      Speedup vs CPU:        x4744.48
+      Speedup vs single GPU: x0.00329835
+
+Benchmarking multi GPU w/ Steams map **************
+  Running a warmup
+  Completed run 20/20
+  Result is correct
+    Total runtime: 76875.2ms
+    Min runtime:   27.1319ms
+    Max runtime:   9749.3ms
+    Mean runtime:  3843.76ms
+    Throughput:    20.813GB/sec
+      Speedup vs CPU:        x3154.44
+      Speedup vs single GPU: x0.00219296
+      Speedup vs multi GPU:  x0.664866
+
+Benchmarking multi GPU map with hints *************
+  Running a warmup
+  Completed run 20/20
+  Result is correct
+    Total runtime: 100104ms
+    Min runtime:   31.2965ms
+    Max runtime:   9552.01ms
+    Mean runtime:  5005.22ms
+    Throughput:    15.9833GB/sec
+      Speedup vs CPU:        x2422.46
+      Speedup vs single GPU: x0.00168408
+      Speedup vs multi GPU:  x0.510584
