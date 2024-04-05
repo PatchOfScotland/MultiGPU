@@ -1,3 +1,9 @@
+#include <thread>
+#include <stdio.h>
+#include <stdlib.h>
+#include <thread>
+#include <iostream>
+#include <unistd.h>  
 template <typename T, typename R>
 R reduction(const T inputElement, R accumulator) {
     return inputElement + accumulator;
@@ -10,7 +16,21 @@ void cpuReduction(
 ) {  
     *output = 0;
 
-    for (int i=0; i<array_len; i++) {
-        *output = mapped_function(input_array[i], *output);
+    const auto processor_count = std::thread::hardware_concurrency();
+    unsigned long int chunk_len = array_len / processor_count;
+    unsigned long int extra = array_len % processor_count;
+
+    #pragma omp parallel for
+    for (int p=0; p<processor_count; p++) {
+        R chunk_output = 0;
+        for (int i=0; i<chunk_len+1; i++) {
+            if (i+(p*(chunk_len+1)) < array_len) {
+                chunk_output = mapped_function(
+                    input_array[i+(p*(chunk_len+1))], chunk_output
+                );
+            }
+        }
+        #pragma omp atomic
+        *output += chunk_output;
     }
 }
