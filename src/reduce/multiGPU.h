@@ -141,14 +141,14 @@ cudaError_t multiGpuReduction(
     const unsigned long int array_len,
     bool skip
 ) {  
-    // For small enough jobs then just run on a single device
-    // TODO derive this more programatically
-    if (array_len < 2048) {
-        std::cout << "Small enough input for just a single device\n";
-        return singleGpuReduction<Reduction>(
-            input_array, accumulator, array_len, skip
-        );
-    }
+    //// For small enough jobs then just run on a single device
+    //// TODO derive this more programatically
+    //if (array_len < 2048) {
+    //    std::cout << "Small enough input for just a single device\n";
+    //    return singleGpuReduction<Reduction>(
+    //        input_array, accumulator, array_len, skip
+    //    );
+    //}
 
     int origin_device;
     CCC(cudaGetDevice(&origin_device));

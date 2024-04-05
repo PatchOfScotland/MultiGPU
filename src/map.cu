@@ -26,21 +26,25 @@ class PlusX {
 
 
 int main(int argc, char** argv){
-    if (argc < 3)
+    if (argc < 4)
     {
         std::cout << "Usage: " 
                   << argv[0] 
-                  << " <array length> <benchmark repeats> -v(optional)\n";
+                  << " <array length> <benchmark repeats> -v(optional) -r(optional)\n";
         exit(EXIT_FAILURE);
     } 
 
     unsigned long int array_len = strtoul(argv[1], NULL, 0);
     unsigned int runs = atoi(argv[2]);
     bool validating = false;
+    bool reduced_output = false;
 
     for (int i=0; i<argc; i++) {
         if (strcmp(argv[i], "-v") == 0) {
             validating = true;
+        }
+        if (strcmp(argv[i], "-r") == 0) {
+            reduced_output = true;
         }
     }
 
@@ -124,7 +128,9 @@ int main(int argc, char** argv){
             CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
             timing_ms[run] = runtime_ms;
 
-            print_loop_feedback(run, runs);
+            if (reduced_output == false) {
+                print_loop_feedback(run, runs);
+            }
 
             // do this at the end as reading output array will shift it back to 
             // the host
@@ -171,7 +177,9 @@ int main(int argc, char** argv){
             CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
             timing_ms[run] = runtime_ms;
 
-            print_loop_feedback(run, runs);
+            if (reduced_output == false) {
+                print_loop_feedback(run, runs);
+            }
 
             // do this at the end as reading output array will shift it back to 
             // the host
@@ -229,7 +237,9 @@ int main(int argc, char** argv){
             CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
             timing_ms[run] = runtime_ms;
 
-            print_loop_feedback(run, runs);
+            if (reduced_output == false) {
+                print_loop_feedback(run, runs);
+            }
 
             // do this at the end as reading output array will shift it back to 
             // the host
@@ -306,7 +316,9 @@ int main(int argc, char** argv){
             CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
             timing_ms[run] = runtime_ms;
 
-            print_loop_feedback(run, runs);
+            if (reduced_output == false) {
+                print_loop_feedback(run, runs);
+            }
 
             // do this at the end as reading output array will shift it back to 
             // the host
