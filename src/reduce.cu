@@ -347,7 +347,7 @@ int main(int argc, char** argv){
         std::cout << "\nBenchmarking non-commutative single GPU reduce ****\n";
 
         std::cout << "  Running a warmup\n";
-        singleGpuReduction<Add<array_type,return_type>>(
+        singleGpuReduction<AddNonCommutative<array_type,return_type>>(
             input_array, output, array_len, skip
         );
         CCC(cudaEventRecord(end_event));
@@ -355,7 +355,7 @@ int main(int argc, char** argv){
 
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
-            singleGpuReduction<Add<array_type,return_type>>(
+            singleGpuReduction<AddNonCommutative<array_type,return_type>>(
                 input_array, output, array_len, skip
             );
             CCC(cudaEventRecord(end_event));
@@ -422,7 +422,7 @@ int main(int argc, char** argv){
         }
 
         std::cout << "  Running a warmup\n";
-        multiGpuReduction<Add<array_type,return_type>>(
+        multiGpuReduction<AddNonCommutative<array_type,return_type>>(
             input_array, output, array_len, skip
         );
         CCC(cudaEventRecord(end_event));
@@ -431,7 +431,7 @@ int main(int argc, char** argv){
 
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
-            multiGpuReduction<Add<array_type,return_type>>(
+            multiGpuReduction<AddNonCommutative<array_type,return_type>>(
                 input_array, output, array_len, skip
             );
             CCC(cudaEventRecord(end_event));
@@ -479,7 +479,7 @@ int main(int argc, char** argv){
         std::cout << "\nBenchmarking non-commutative multi GPU reduce with hints\n";
 
         std::cout << "  Running a warmup\n";
-        multiGpuReduction<Add<array_type,return_type>>(
+        multiGpuReduction<AddNonCommutative<array_type,return_type>>(
             input_array, output, array_len, skip
         );
         CCC(cudaEventRecord(end_event));
@@ -487,7 +487,7 @@ int main(int argc, char** argv){
 
         for (int run=0; run<runs; run++) {
             CCC(cudaEventRecord(start_event));
-            multiGpuReduction<Add<array_type,return_type>>(
+            multiGpuReduction<AddNonCommutative<array_type,return_type>>(
                 input_array, output, array_len, skip
             );
             CCC(cudaEventRecord(end_event));
