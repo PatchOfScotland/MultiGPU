@@ -111,8 +111,8 @@ int main(int argc, char** argv){
 
     check_device_count();
 
-    { // Get commutative CPU baseline
-        std::cout << "Getting commutative CPU result\n";
+    { // Get CPU baseline
+        std::cout << "Getting CPU result\n";
 
         struct timeval cpu_start_time;
         struct timeval cpu_end_time;
@@ -321,27 +321,8 @@ int main(int argc, char** argv){
         );
     }
 
-    { // Get non-commutative CPU baseline
-        std::cout << "Getting non-commutative CPU result\n";
-
-        struct timeval cpu_start_time;
-        struct timeval cpu_end_time;
-
-        gettimeofday(&cpu_start_time, NULL);
-
-        if (skip == false) {
-            cpuReduction(
-                reduction<array_type,return_type>, input_array, 
-                &validation_result, array_len
-            );    
-        }
-        gettimeofday(&cpu_end_time, NULL); 
-
-        cpu_time_ms = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
-            - (cpu_start_time.tv_usec+(1e6*cpu_start_time.tv_sec));
-        std::cout << "CPU reduction took: " << cpu_time_ms << "ms\n";
-        std::cout << "CPU throughput:     " << (float)datasize / cpu_time_ms << "GB/sec\n";
-    }
+    float single_gpu_time_ms = -1;
+    float multi_gpu_time_ms = -1;
 
     { // Benchmark non-commutative single GPU
         std::cout << "\nBenchmarking non-commutative single GPU reduce ****\n";

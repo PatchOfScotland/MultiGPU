@@ -1,5 +1,9 @@
 #!/bin/bash
+
+REPEATS=100
+
 make clean
+mkdir -p build
 
 ## Map
 make map
@@ -14,7 +18,7 @@ for i in "500 4KB"         "1000 8KB" \
 do
     set -- $i
     echo "Benchmarking Map $2"
-#    ./build/map $1 20 -v -r > ./results/map_$2.out
+    ./build/map $1 $REPEATS -v -r > ./results/map_$2.out
 done
 
 ## Reduce
@@ -30,5 +34,5 @@ for i in "1000 4KB"         "2000 8KB" \
 do
     set -- $i
     echo "Benchmarking Reduce $2"
-#    ./build/reduce $1 20 -v -r > ./results/reduce_$2.out
+    ./build/reduce $1 $REPEATS -v -r > ./results/reduce_$2.out
 done
