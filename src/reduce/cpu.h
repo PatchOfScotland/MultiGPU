@@ -18,7 +18,6 @@ void cpuReduction(
 
     const auto processor_count = std::thread::hardware_concurrency();
     unsigned long int chunk_len = array_len / processor_count;
-    unsigned long int extra = array_len % processor_count;
 
     #pragma omp parallel for
     for (int p=0; p<processor_count; p++) {

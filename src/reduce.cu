@@ -321,8 +321,8 @@ int main(int argc, char** argv){
         );
     }
 
-    float single_gpu_time_ms = -1;
-    float multi_gpu_time_ms = -1;
+    single_gpu_time_ms = -1;
+    multi_gpu_time_ms = -1;
 
     { // Benchmark non-commutative single GPU
         std::cout << "\nBenchmarking non-commutative single GPU reduce ****\n";
