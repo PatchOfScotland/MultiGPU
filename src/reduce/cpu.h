@@ -1,9 +1,5 @@
 #include <thread>
-#include <stdio.h>
-#include <stdlib.h>
-#include <thread>
-#include <iostream>
-#include <unistd.h>  
+
 template <typename T, typename R>
 R reduction(const T inputElement, R accumulator) {
     return inputElement + accumulator;

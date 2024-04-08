@@ -273,7 +273,7 @@ int main(int argc, char** argv){
         int device_count;
         CCC(cudaGetDeviceCount(&device_count));
 
-        size_t block_count = (array_len + block_size - 1) / block_size;
+        size_t block_count = (array_len + BLOCK_SIZE - 1) / BLOCK_SIZE;
         size_t dev_block_count = (block_count + device_count - 1) / device_count;
 
         unsigned long int array_offset = 0;

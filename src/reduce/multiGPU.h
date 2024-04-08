@@ -17,7 +17,7 @@ __global__ void multiGpuReductionKernelInitial(
         + threadIdx.x) 
         + offset;
 
-    __shared__ typename Reduction::ReturnElement per_block_results[block_size];
+    __shared__ typename Reduction::ReturnElement per_block_results[BLOCK_SIZE];
     typename Reduction::ReturnElement per_thread_accumulator = 0;
 
     // Initial data grab. We traverse the input array by load_stride to 
@@ -57,7 +57,7 @@ __global__ void multiGpuReductionKernelFinal(
     const size_t load_stride
 ) {
     size_t index = threadIdx.x;
-    __shared__ typename Reduction::ReturnElement per_block_results[block_size];
+    __shared__ typename Reduction::ReturnElement per_block_results[BLOCK_SIZE];
     typename Reduction::ReturnElement per_thread_accumulator = 0;
 
     // Initial data grab. We traverse the input array by load_stride to 
@@ -95,7 +95,7 @@ void per_device_management(
     const size_t dev_block_count, 
     const int device
 ) {
-    size_t index_start = device*dev_block_count*block_size ;
+    size_t index_start = device*dev_block_count*BLOCK_SIZE ;
     unsigned long int offset = device_start - index_start;
 
     CCC(cudaSetDevice(device));
@@ -113,16 +113,16 @@ void per_device_management(
     CCC(cudaEventCreate(&sync_event));
 
     multiGpuReductionKernelInitial<Reduction><<<
-        dev_block_count, block_size
+        dev_block_count, BLOCK_SIZE
     >>>(
-        input_array, device_end, offset, (dev_block_count*block_size), 
+        input_array, device_end, offset, (dev_block_count*BLOCK_SIZE), 
         device, global_results
     );
     CCC(cudaEventRecord(sync_event));
     CCC(cudaEventSynchronize(sync_event));
 
-    multiGpuReductionKernelFinal<Reduction><<<1, block_size>>>(
-        global_results, device_accumulator, dev_block_count, block_size
+    multiGpuReductionKernelFinal<Reduction><<<1, BLOCK_SIZE>>>(
+        global_results, device_accumulator, dev_block_count, BLOCK_SIZE
     );
 
     CCC(cudaEventRecord(sync_event));
@@ -156,7 +156,7 @@ cudaError_t multiGpuReduction(
     CCC(cudaGetDeviceCount(&device_count));
 
     size_t block_count = min(
-        (array_len + block_size) / block_size, parallel_blocks * device_count
+        (array_len + BLOCK_SIZE) / BLOCK_SIZE, PARALLEL_BLOCKS * device_count
     );
     size_t dev_block_count = (block_count + device_count - 1) / device_count;
 
