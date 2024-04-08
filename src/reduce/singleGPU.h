@@ -137,46 +137,53 @@ __global__ void associativeSingleGpuReductionKernelInitial(
 ) {
     typename Reduction::ReturnElement result = Reduction::init();
 
-    extern __shared__ char sh_mem[];
-    volatile typename Reduction::InputElement* shmem_inp = (typename Reduction::InputElement*)sh_mem;
-    volatile typename Reduction::ReturnElement* shmem_red = (typename Reduction::ReturnElement*)sh_mem;
+    extern __shared__ char shared_memory[];
+    volatile typename Reduction::InputElement* shared_memory_input = 
+        (typename Reduction::InputElement*)shared_memory;
+    volatile typename Reduction::ReturnElement* shared_memory_return = 
+        (typename Reduction::ReturnElement*)shared_memory;
 
     uint32_t num_elems_per_block = num_sequential_blocks * CHUNK * blockDim.x;
-    uint32_t inp_block_offs = num_elems_per_block * blockIdx.x;
+    uint32_t input_block_offset = num_elems_per_block * blockIdx.x;
     uint32_t num_elems_per_iter  = CHUNK * blockDim.x;
 
     // virtualization loop of count `num_seq_chunks`. Each iteration processes
     //   `blockDim.x * CHUNK` elements, i.e., `CHUNK` elements per thread.
     // `num_seq_chunks` is chosen such that it covers all N input elements
     for(int seq=0; seq<num_elems_per_block; seq+=num_elems_per_iter) {
-        // 1. copy `CHUNK` input elements per thread from global to shared memory
-        //    in a coalesced fashion (for global memory)
-        copyFromGlb2ShrMem<typename Reduction::InputElement, CHUNK>
-                ( inp_block_offs + seq, array_len, Reduction::init(), input_array, shmem_inp );
+        // 1. copy `CHUNK` input elements per thread from global to shared 
+        //    memory in a coalesced fashion (for global memory)
+        from_global_to_shared_memory<typename Reduction::InputElement, CHUNK>( 
+            input_block_offset + seq, array_len, Reduction::init(), 
+            input_array, shared_memory_input 
+        );
     
         // 2. each thread sequentially reads its `CHUNK` elements from shared
         //     memory, applies the map function and reduces them.
-        typename Reduction::ReturnElement acc = Reduction::init();
+        typename Reduction::ReturnElement accumulator = Reduction::init();
         uint32_t shmem_offset = threadIdx.x * CHUNK;
         #pragma unroll
         for (uint32_t i = 0; i < CHUNK; i++) {
-            typename Reduction::InputElement elm = shmem_inp[shmem_offset + i];
-            typename Reduction::ReturnElement red = Reduction::map(elm);
-            acc = Reduction::apply(acc, red);
+            typename Reduction::InputElement element = 
+                shared_memory_input[shmem_offset + i];
+            typename Reduction::ReturnElement red = Reduction::map(element);
+            accumulator = Reduction::apply(accumulator, red);
         }
         __syncthreads();
         
         // 3. each thread publishes the previous result in shared memory
-        shmem_red[threadIdx.x] = acc;
+        shared_memory_return[threadIdx.x] = accumulator;
         __syncthreads();
     
         // 4. perform an intra-block reduction with the per-thread result
         //    from step 2; the last thread updates the per-block result `res`
-        acc = scanIncBlock<Reduction>(shmem_red, threadIdx.x);
+        accumulator = scanIncBlock<Reduction>(
+            shared_memory_return, threadIdx.x
+        );
         if (threadIdx.x == blockDim.x-1) {
-            result = Reduction::apply(result, acc);
+            result = Reduction::apply(result, accumulator);
         }
-      __syncthreads();
+        __syncthreads();
         // rinse and repeat until all elements have been processed.
     }
 
@@ -193,17 +200,18 @@ __global__ void associativeSingleGpuReductionKernelFinal(
     typename Reduction::ReturnElement* accumulator,
     const size_t array_len
 ) {
-    extern __shared__ char sh_mem[];
-    volatile typename Reduction::ReturnElement* shmem_red = (typename Reduction::ReturnElement*)sh_mem;
-    typename Reduction::ReturnElement elm = Reduction::init();
+    extern __shared__ char shared_memory[];
+    volatile typename Reduction::ReturnElement* shared_memory_return = 
+        (typename Reduction::ReturnElement*)shared_memory;
+    typename Reduction::ReturnElement element = Reduction::init();
     if(threadIdx.x < array_len) {
-        elm = input_array[threadIdx.x];
+        element = input_array[threadIdx.x];
     }
-    shmem_red[threadIdx.x] = elm;
+    shared_memory_return[threadIdx.x] = element;
     __syncthreads();
-    elm = scanIncBlock<Reduction>(shmem_red, threadIdx.x);
+    element = scanIncBlock<Reduction>(shared_memory_return, threadIdx.x);
     if (threadIdx.x == blockDim.x-1) {
-        *accumulator = elm;
+        *accumulator = element;
     }
 }
 
@@ -214,21 +222,32 @@ cudaError_t associativeSingleGpuReduction(
     const unsigned long int array_len,
     bool skip
 ) {
-    initHwd();
-    const uint32_t CHUNK = ELEMENTS_PER_THREAD*4/sizeof(typename Reduction::InputElement);
+    initialise_hardware();
+    const uint32_t CHUNK = 
+        ELEMENTS_PER_THREAD*4/sizeof(typename Reduction::InputElement);
     uint32_t num_sequential_blocks;
-    uint32_t block_count = getNumBlocks<CHUNK>(array_len, &num_sequential_blocks);
-    size_t shared_memory_size = BLOCK_SIZE * max( sizeof(typename Reduction::InputElement) * CHUNK, sizeof(typename Reduction::ReturnElement) );
+    uint32_t block_count = getNumBlocks<CHUNK>(
+        array_len, &num_sequential_blocks
+    );
+    size_t shared_memory_size = BLOCK_SIZE * max(
+        sizeof(typename Reduction::InputElement) * CHUNK, 
+        sizeof(typename Reduction::ReturnElement)
+    );
 
     typename Reduction::ReturnElement* global_results;
-    CCC(cudaMallocManaged(&global_results, block_count*sizeof(typename Reduction::ReturnElement)));
+    CCC(cudaMallocManaged(
+        &global_results, block_count*sizeof(typename Reduction::ReturnElement)
+    ));
 
     cudaEvent_t sync_event;
     CCC(cudaEventCreate(&sync_event));
 
     if (skip == false) {
-        associativeSingleGpuReductionKernelInitial<Reduction, CHUNK><<<block_count, BLOCK_SIZE, shared_memory_size>>>(
-            input_array, array_len, (block_count*BLOCK_SIZE), global_results, num_sequential_blocks
+        associativeSingleGpuReductionKernelInitial<Reduction, CHUNK><<<
+            block_count, BLOCK_SIZE, shared_memory_size
+        >>>(
+            input_array, array_len, (block_count*BLOCK_SIZE), global_results, 
+            num_sequential_blocks
         );
     }
 
@@ -237,8 +256,12 @@ cudaError_t associativeSingleGpuReduction(
 
     if (skip == false) {
         const uint32_t block_size = closestMul32(block_count);
-        shared_memory_size = block_size * sizeof(typename Reduction::ReturnElement);
-        associativeSingleGpuReductionKernelFinal<Reduction, CHUNK><<<1, block_size, shared_memory_size>>>(
+        shared_memory_size = 
+            block_size * sizeof(typename Reduction::ReturnElement);
+            
+        associativeSingleGpuReductionKernelFinal<Reduction, CHUNK><<<
+            1, block_size, shared_memory_size
+        >>>(
             global_results, accumulator, block_count
         );
     }

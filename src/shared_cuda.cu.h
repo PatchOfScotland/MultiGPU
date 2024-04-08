@@ -18,14 +18,15 @@ const size_t BLOCK_SIZE = 1024;
 const size_t PARALLEL_BLOCKS = 65535;
 const size_t ELEMENTS_PER_THREAD = 12;
 
-uint32_t MAX_HWDTH;
-uint32_t MAX_SHMEM;
+uint32_t MAX_HARDWARE_WIDTH;
+uint32_t MAX_SHARED_MEMORY;
 
-void initHwd() {
+void initialise_hardware() {
     cudaDeviceProp prop;
     cudaGetDeviceProperties(&prop, 0);
-    MAX_HWDTH = prop.maxThreadsPerMultiProcessor * prop.multiProcessorCount;
-    MAX_SHMEM = prop.sharedMemPerBlock;
+    MAX_HARDWARE_WIDTH = 
+        prop.maxThreadsPerMultiProcessor * prop.multiProcessorCount;
+    MAX_SHARED_MEMORY = prop.sharedMemPerBlock;
 }
 
 // Checking Cuda Call
@@ -58,7 +59,6 @@ void check_device_count() {
 
 /**
  * `array_len` is the input-array length
- * `B` is the CUDA block size
  * This function attempts to virtualize the computation so
  *   that it spawns at most 1024 CUDA blocks; otherwise an
  *   error is thrown. It should not throw an error for any
@@ -68,20 +68,24 @@ void check_device_count() {
  *   each thread so that the number of blocks is <= 1024. 
  */
 template<int CHUNK>
-uint32_t getNumBlocks(const unsigned long int array_len, uint32_t* num_chunks) {
-    const uint32_t max_inp_thds = (array_len + CHUNK - 1) / CHUNK;
-    const uint32_t num_thds0    = min(max_inp_thds, MAX_HWDTH);
+uint32_t getNumBlocks(
+    const unsigned long int array_len, uint32_t* num_chunks
+) {
+    const uint32_t max_input_threads = (array_len + CHUNK - 1) / CHUNK;
+    const uint32_t num_threads_0 = min(max_input_threads, MAX_HARDWARE_WIDTH);
 
-    const uint32_t min_elms_all_thds = num_thds0 * CHUNK;
-    *num_chunks = max((unsigned long int)1, array_len / min_elms_all_thds);
+    const uint32_t min_elements_threads = num_threads_0 * CHUNK;
+    *num_chunks = max((unsigned long int)1, array_len / min_elements_threads);
 
-    const uint32_t seq_chunk = (*num_chunks) * CHUNK;
-    const uint32_t num_thds = (array_len + seq_chunk - 1) / seq_chunk;
-    const uint32_t num_blocks = (num_thds + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    const uint32_t sequential_chunk = (*num_chunks) * CHUNK;
+    const uint32_t num_threads = 
+        (array_len + sequential_chunk - 1) / sequential_chunk;
+    const uint32_t num_blocks = (num_threads + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
     if(num_blocks > BLOCK_SIZE) {
-        printf("Broken Assumption: number of blocks %d exceeds maximal block size: %d. BLOCK_SIZE: %d. Exiting!"
-              , num_blocks, BLOCK_SIZE, BLOCK_SIZE);
+        printf("Broken Assumption: number of blocks %d exceeds maximal block "
+               "size: %d. BLOCK_SIZE: %d. Exiting!"
+               , num_blocks, BLOCK_SIZE, BLOCK_SIZE);
         exit(1);
     }
 
@@ -96,98 +100,99 @@ uint32_t getNumBlocks(const unsigned long int array_len, uint32_t* num_chunks) {
  *   is a word (or less). Coalesced access means that (groups of 32)
  *   consecutive threads access consecutive memory words.
  * 
- * `glb_offs` is the offset in global-memory array `d_inp`
+ * `global_offset` is the offset in global-memory array `global_array`
  *    from where elements should be read.
- * `d_inp` is the input array stored in global memory
- * `N` is the length of `d_inp`
- * `ne` is the neutral element of `T` (think zero). In case
+ * `global_array` is the input array stored in global memory
+ * `array_len` is the length of `global_array`
+ * `neutral_element` is the neutral element of `T` (think zero). In case
  *    the index of the element to be read by the current thread
- *    is out of range, then place `ne` in shared memory instead.
- * `shmem_inp` is the shared memory. It has size 
+ *    is out of range, then place `neutral_element` in shared memory instead.
+ * `shared_memory` is the shared memory. It has size 
  *     `blockDim.x*CHUNK*sizeof(T)`, where `blockDim.x` is the
- *     size of the CUDA block. `shmem_inp` should be filled from
+ *     size of the CUDA block. `shared_memory` should be filled from
  *     index `0` to index `blockDim.x*CHUNK - 1`.
  *
  * As such, a CUDA-block B of threads executing this function would
  *   read `CHUNK*B` elements from global memory and store them to
  *   (fast) shared memory, in the same order in which they appear
  *   in global memory, but making sure that consecutive threads
- *   read consecutive elements of `d_inp` in a SIMD instruction.
+ *   read consecutive elements of `global_array` in a SIMD instruction.
  */ 
 template<class T, uint32_t CHUNK>
-__device__ inline void
-copyFromGlb2ShrMem( const uint32_t glb_offs
-                  , const unsigned long int N
-                  , const T& ne
-                  , T* d_inp
-                  , volatile T* shmem_inp
+__device__ inline void from_global_to_shared_memory(
+    const uint32_t global_offset, const unsigned long int array_len, 
+    const T& neutral_element, T* global_array, volatile T* shared_memory
 ) {
     #pragma unroll
     for(uint32_t i=0; i<CHUNK; i++) {
-        uint32_t lind = i*blockDim.x + threadIdx.x;
-        uint32_t glb_ind = glb_offs + lind;
-        T elm = ne;
-        if(glb_ind < N) { 
-            elm = d_inp[glb_ind]; 
+        uint32_t local_index = i*blockDim.x + threadIdx.x;
+        uint32_t global_index = global_offset + local_index;
+        T element = neutral_element;
+        if(global_index < array_len) { 
+            element = global_array[global_index]; 
         }
-        shmem_inp[lind] = elm;
+        shared_memory[local_index] = element;
     }
     __syncthreads();
 }
 
 /**
- * A warp of threads cooperatively scan with generic-binop `OP` a 
+ * A warp of threads cooperatively scan with generic-binop `Operation` a 
  *   number of warp elements stored in shared memory (`ptr`).
  * No synchronization is needed because the thread in a warp execute
  *   in lockstep.
- * `idx` is the local thread index within a cuda block (threadIdx.x)
+ * `index` is the local thread index within a cuda block (threadIdx.x)
  * Each thread returns the corresponding scanned element of type
- *   `typename OP::RedElTp`
+ *   `typename Operation::ReturnElement`
  */ 
-template<class Reduction>
-__device__ inline typename Reduction::ReturnElement
-scanIncWarp( volatile typename Reduction::ReturnElement* ptr, const unsigned int idx ) {
-    const unsigned int lane = idx & (WARP-1);
+template<class Operation>
+__device__ inline typename Operation::ReturnElement scanIncWarp(
+    volatile typename Operation::ReturnElement* ptr, const unsigned int index
+) {
+    const unsigned int lane = index & (WARP-1);
     #pragma unroll
     for(uint32_t i=0; i<lgWARP; i++) {
         const uint32_t p = (1<<i);
-        if( lane >= p ) ptr[idx] = Reduction::apply(ptr[idx-p], ptr[idx]);
-        // __syncwarp();
+        if( lane >= p ) {
+            ptr[index] = Operation::apply(ptr[index-p], ptr[index]);
+        }
     }
-    return Reduction::remVolatile(ptr[idx]);
+    return Operation::remVolatile(ptr[index]);
 }
 
 /**
- * A CUDA-block of threads cooperatively scan with generic-binop `OP`
+ * A CUDA-block of threads cooperatively scan with generic-binop `Operation`
  *   a CUDA-block number of elements stored in shared memory (`ptr`).
- * `idx` is the local thread index within a cuda block (threadIdx.x)
+ * `index` is the local thread index within a cuda block (threadIdx.x)
  * Each thread returns the corresponding scanned element of type
- *   `typename OP::RedElTp`. Note that this is NOT published to shared memory!
+ *   `typename Operation::ReturnElement`. Note that this is NOT published to shared memory!
  */ 
-template<class Reduction>
-__device__ inline typename Reduction::ReturnElement
-scanIncBlock(volatile typename Reduction::ReturnElement* ptr, const unsigned int idx) {
-    const unsigned int lane   = idx & (WARP-1);
-    const unsigned int warpid = idx >> lgWARP;
+template<class Operation>
+__device__ inline typename Operation::ReturnElement scanIncBlock(
+    volatile typename Operation::ReturnElement* ptr, 
+    const unsigned int index
+) {
+    const unsigned int lane = index & (WARP-1);
+    const unsigned int warp_id = index >> lgWARP;
 
     // 1. perform scan at warp level
-    typename Reduction::ReturnElement res = scanIncWarp<Reduction>(ptr,idx);
+    typename Operation::ReturnElement res = scanIncWarp<Operation>(ptr,index);
     __syncthreads();
 
     // 2. place the end-of-warp results in
     //   the first warp. This works because
     //   warp size = 32, and 
     //   max block size = 32^2 = 1024
-    if (lane == (WARP-1)) { ptr[warpid] = res; } 
+    if (lane == (WARP-1)) { ptr[warp_id] = res; } 
     __syncthreads();
 
     // 3. scan again the first warp
-    if (warpid == 0) scanIncWarp<Reduction>(ptr, idx);
+    if (warp_id == 0) scanIncWarp<Operation>(ptr, index);
     __syncthreads();
 
     // 4. accumulate results from previous step;
-    if (warpid > 0) {
-        res = Reduction::apply(ptr[warpid-1], res);
+    if (warp_id > 0) {
+        res = Operation::apply(ptr[warp_id-1], res);
     }
 
     return res;
