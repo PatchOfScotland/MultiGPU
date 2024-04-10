@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 RESULTS_DIR = "results"
 
-result_files = [f for f in os.listdir(RESULTS_DIR) if f not in [".gitignore", "map.png", "reduce.png"]]
+result_files = [f for f in os.listdir(RESULTS_DIR) if f.endswith(".out")]
 
 results = {}
 

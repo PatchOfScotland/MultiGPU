@@ -223,6 +223,7 @@ cudaError_t associativeSingleGpuReduction(
     bool skip
 ) {
     initialise_hardware();
+
     const uint32_t CHUNK = 
         ELEMENTS_PER_THREAD*4/sizeof(typename Reduction::InputElement);
     uint32_t num_sequential_blocks;
