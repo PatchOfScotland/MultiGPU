@@ -6,10 +6,18 @@
 
 const auto processor_count = std::thread::hardware_concurrency();
 
-void init_array(float* arr, size_t n) {
+void init_array(float* arr, unsigned long int array_len) {
+    srand(5454);
+    for(int i=0; i<array_len; i++) {
+        arr[i] = (float)rand() / RAND_MAX;
+    }
+}
+
+void init_sparse_array(float* arr, unsigned long int array_len, int n) {
     srand(5454);
     for(int i=0; i<n; i++) {
-        arr[i] = (float)rand() / RAND_MAX;
+        unsigned long int random_index = rand() % (array_len);
+        arr[random_index] += 1;
     }
 }
 
