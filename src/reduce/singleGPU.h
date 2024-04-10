@@ -14,19 +14,19 @@ __global__ void commutativeSingleGpuReductionKernelInitial(
 ) {
     size_t index = (blockDim.x * blockIdx.x + threadIdx.x);
     __shared__ typename Reduction::ReturnElement per_block_results[BLOCK_SIZE];
-    typename Reduction::ReturnElement per_thread_accumulator = 0;
+    typename Reduction::ReturnElement thread_accumulator = Reduction::init();
 
     // Initial data grab. We traverse the input array by load_stride to 
     // maximise parallel thread locality
     for (size_t i=index; i<array_len; i+=load_stride) {
-        per_thread_accumulator = Reduction::apply(
-            input_array[i], per_thread_accumulator
+        thread_accumulator = Reduction::apply(
+            input_array[i], thread_accumulator
         );
     }
 
     __syncthreads();
  
-    per_block_results[threadIdx.x] = per_thread_accumulator;
+    per_block_results[threadIdx.x] = thread_accumulator;
 
     // Now start reducing further down until we have a unified result per block
     for (unsigned int stride=blockDim.x/2; stride>0; stride>>=1) {
@@ -55,19 +55,19 @@ __global__ void commutativeSingleGpuReductionKernelFinal(
 ) {
     size_t index = threadIdx.x;
     __shared__ typename Reduction::ReturnElement per_block_results[BLOCK_SIZE];
-    typename Reduction::ReturnElement per_thread_accumulator = 0;
+    typename Reduction::ReturnElement thread_accumulator = Reduction::init();
 
     // Initial data grab. We traverse the input array by load_stride to 
     // maximise parallel thread locality
     for (size_t i=index; i<array_len; i+=load_stride) {
-        per_thread_accumulator = Reduction::apply(
-            input_array[i], per_thread_accumulator
+        thread_accumulator = Reduction::apply(
+            input_array[i], thread_accumulator
         );
     }
 
     __syncthreads();
 
-    per_block_results[threadIdx.x] = per_thread_accumulator;
+    per_block_results[threadIdx.x] = thread_accumulator;
 
     // Now start reducing further down until we have a unified result per block
     for (unsigned int stride=blockDim.x/2; stride>0; stride>>=1) {
@@ -258,7 +258,7 @@ cudaError_t associativeSingleGpuReduction(
         const uint32_t block_size = closestMul32(block_count);
         shared_memory_size = 
             block_size * sizeof(typename Reduction::ReturnElement);
-            
+
         associativeSingleGpuReductionKernelFinal<Reduction, CHUNK><<<
             1, block_size, shared_memory_size
         >>>(
@@ -287,7 +287,6 @@ cudaError_t singleGpuReduction(
         );
     }
     else {
-        // TODO
         return associativeSingleGpuReduction<Reduction>(
             input_array, accumulator, array_len, skip
         );
