@@ -1,0 +1,50 @@
+Running array of length 100000000 (0.8GB)
+Will validate output
+Getting CPU baseline
+CPU mapping took: 43950ms
+
+Benchmarking single GPU map ***********************
+  Running a warmup
+  Result is correct
+    Total runtime: 60.2061ms
+    Min runtime:   0.600064ms
+    Max runtime:   0.610304ms
+    Mean runtime:  0.602061ms
+    Throughput:    1328.77GB/sec
+      Speedup vs CPU:        x72999.3
+
+Benchmarking multi GPU map ************************
+  Running a warmup
+  Result is correct
+    Total runtime: 30.3647ms
+    Min runtime:   0.30208ms
+    Max runtime:   0.325632ms
+    Mean runtime:  0.303647ms
+    Throughput:    2634.64GB/sec
+      Speedup vs CPU:        x144740
+      Speedup vs single GPU: x1.98277
+
+Benchmarking multi GPU w/ Steams map **************
+  Running a warmup
+  Result is correct
+    Total runtime: 30.5162ms
+    Min runtime:   0.303104ms
+    Max runtime:   0.313344ms
+    Mean runtime:  0.305162ms
+    Throughput:    2621.55GB/sec
+      Speedup vs CPU:        x144022
+      Speedup vs single GPU: x1.97292
+      Speedup vs multi GPU:  x0.995034
+
+Benchmarking multi GPU map with hints *************
+  Running a warmup
+  Result is correct
+    Total runtime: 30.9637ms
+    Min runtime:   0.306176ms
+    Max runtime:   0.400384ms
+    Mean runtime:  0.309637ms
+    Throughput:    2583.67GB/sec
+      Speedup vs CPU:        x141940
+      Speedup vs single GPU: x1.94441
+      Speedup vs multi GPU:  x0.980655
+

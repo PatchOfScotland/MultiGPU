@@ -202,98 +202,6 @@ cudaError_t commutativeMultiGpuReduction(
     return cudaGetLastError();
 }
 
-/*
-    template<typename Reduction, int CHUNK>
-    __global__ void associativeMultiGpuReductionKernelInitial(
-        typename Reduction::InputElement* input_array, 
-        const unsigned long int end, 
-        const unsigned long int offset,
-        const int load_stride, 
-        const int device_num, 
-        volatile typename Reduction::ReturnElement* global_results,
-        uint32_t num_sequential_blocks
-    ) {
-        typename Reduction::ReturnElement result = Reduction::init();
-    
-        extern __shared__ char shared_memory[];
-        volatile typename Reduction::InputElement* shared_memory_input = 
-            (typename Reduction::InputElement*)shared_memory;
-        volatile typename Reduction::ReturnElement* shared_memory_return = 
-            (typename Reduction::ReturnElement*)shared_memory;
-    
-        uint32_t num_elems_per_block = num_sequential_blocks * CHUNK * blockDim.x;
-        uint32_t input_block_offset = num_elems_per_block * blockIdx.x;
-        uint32_t num_elems_per_iter  = CHUNK * blockDim.x;
-    
-        // virtualization loop of count `num_seq_chunks`. Each iteration processes
-        //   `blockDim.x * CHUNK` elements, i.e., `CHUNK` elements per thread.
-        // `num_seq_chunks` is chosen such that it covers all N input elements
-        for(int seq=0; seq<num_elems_per_block; seq+=num_elems_per_iter) {
-            // 1. copy `CHUNK` input elements per thread from global to shared 
-            //    memory in a coalesced fashion (for global memory)
-            from_global_to_shared_memory<typename Reduction::InputElement, CHUNK>( 
-                input_block_offset + seq, array_len, Reduction::init(), 
-                input_array, shared_memory_input 
-            );
-        
-            // 2. each thread sequentially reads its `CHUNK` elements from shared
-            //     memory, applies the map function and reduces them.
-            typename Reduction::ReturnElement accumulator = Reduction::init();
-            uint32_t shmem_offset = threadIdx.x * CHUNK;
-            #pragma unroll
-            for (uint32_t i = 0; i < CHUNK; i++) {
-                typename Reduction::InputElement element = 
-                    shared_memory_input[shmem_offset + i];
-                typename Reduction::ReturnElement red = Reduction::map(element);
-                accumulator = Reduction::apply(accumulator, red);
-            }
-            __syncthreads();
-            
-            // 3. each thread publishes the previous result in shared memory
-            shared_memory_return[threadIdx.x] = accumulator;
-            __syncthreads();
-        
-            // 4. perform an intra-block reduction with the per-thread result
-            //    from step 2; the last thread updates the per-block result `res`
-            accumulator = scanIncBlock<Reduction>(
-                shared_memory_return, threadIdx.x
-            );
-            if (threadIdx.x == blockDim.x-1) {
-                result = Reduction::apply(result, accumulator);
-            }
-            __syncthreads();
-            // rinse and repeat until all elements have been processed.
-        }
-    
-        // Record result to shared memory
-        if (threadIdx.x == blockDim.x-1) {
-            global_results[blockIdx.x] = result;
-        }
-    }
-    
-    template<typename Reduction>
-    __global__ void associativeMultiGpuReductionKernelFinal(
-        volatile typename Reduction::ReturnElement* input_array, 
-        typename Reduction::ReturnElement* accumulator,
-        const size_t array_len, 
-        const size_t load_stride
-    ) {
-        extern __shared__ char shared_memory[];
-        volatile typename Reduction::ReturnElement* shared_memory_return = 
-            (typename Reduction::ReturnElement*)shared_memory;
-        typename Reduction::ReturnElement element = Reduction::init();
-        if(threadIdx.x < array_len) {
-            element = input_array[threadIdx.x];
-        }
-        shared_memory_return[threadIdx.x] = element;
-        __syncthreads();
-        element = scanIncBlock<Reduction>(shared_memory_return, threadIdx.x);
-        if (threadIdx.x == blockDim.x-1) {
-            *accumulator = element;
-        }
-    }
-*/
-
 template<typename Reduction>
 void associative_per_device_management(
     typename Reduction::InputElement* input_array, 
@@ -313,11 +221,6 @@ void associative_per_device_management(
         sizeof(typename Reduction::ReturnElement))
     );
     *device_accumulator = Reduction::init();
-
-    typename Reduction::InputElement debug = 0;
-    for (int i=0; i<sub_array_len; i++) {
-        debug = debug + sub_input_array[i];
-    }
 
     associativeSingleGpuReduction<Reduction>(
         sub_input_array, device_accumulator, sub_array_len, false

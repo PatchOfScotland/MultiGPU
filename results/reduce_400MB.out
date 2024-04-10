@@ -1,0 +1,78 @@
+Running array of length 100000000 (0.4GB)
+Will validate output
+Initialising input array
+Getting CPU result
+CPU reduction took: 28019ms
+CPU throughput:     1.4276e-05GB/sec
+
+Benchmarking commutative single GPU reduce ********
+  Running a warmup
+  Comparing 10000 and 10000 with tolerance of 1000
+  Result is correct
+    Total runtime: 126.978065491ms
+    Min runtime:   1.09875202179ms
+    Max runtime:   1.33324801922ms
+    Mean runtime:  1.26978063583ms
+    Throughput:    315.015045166GB/sec
+      Speedup vs CPU:        x22066
+
+Benchmarking commutative multi GPU reduce *********
+  Running a warmup
+  Comparing 10000 and 10000 with tolerance of 1000
+  Result is correct
+    Total runtime: 329.024475098ms
+    Min runtime:   2.84569597244ms
+    Max runtime:   4.20659208298ms
+    Mean runtime:  3.29024481773ms
+    Throughput:    121.571495056GB/sec
+      Speedup vs CPU:        x8515.78
+      Speedup vs single GPU: x0.385923
+
+Benchmarking commutative multi GPU reduce with hints
+  Running a warmup
+  Comparing 10000 and 10000 with tolerance of 1000
+  Result is correct
+    Total runtime: 241.746932983ms
+    Min runtime:   2.11148810387ms
+    Max runtime:   2.8620800972ms
+    Mean runtime:  2.41746926308ms
+    Throughput:    165.462280273GB/sec
+      Speedup vs CPU:        x11590.2
+      Speedup vs single GPU: x0.525252
+      Speedup vs multi GPU:  x1.36103
+
+Benchmarking associative single GPU reduce ****
+  Running a warmup
+  Comparing 10000 and 10000 with tolerance of 1000
+  Result is correct
+    Total runtime: 1106.87939453ms
+    Min runtime:   11.0315523148ms
+    Max runtime:   11.6469764709ms
+    Mean runtime:  11.0687942505ms
+    Throughput:    36.1376304626GB/sec
+      Speedup vs CPU:        x2531.35
+
+Benchmarking associative multi GPU reduce *****
+  Running a warmup
+  Comparing 10000 and 10000 with tolerance of 1000
+  Result is correct
+    Total runtime: 461.949951172ms
+    Min runtime:   4.47795200348ms
+    Max runtime:   6.19622421265ms
+    Mean runtime:  4.61949968338ms
+    Throughput:    86.5894546509GB/sec
+      Speedup vs CPU:        x6065.38
+      Speedup vs single GPU: x2.3961
+
+Benchmarking associative multi GPU reduce with hints
+  Running a warmup
+  Comparing 10000 and 10000 with tolerance of 1000
+  Result is correct
+    Total runtime: 466.017272949ms
+    Min runtime:   4.46259212494ms
+    Max runtime:   5.08415985107ms
+    Mean runtime:  4.6601729393ms
+    Throughput:    85.8337173462GB/sec
+      Speedup vs CPU:        x6012.44
+      Speedup vs single GPU: x2.37519
+      Speedup vs multi GPU:  x0.991272
