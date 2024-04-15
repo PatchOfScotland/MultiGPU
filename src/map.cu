@@ -30,7 +30,7 @@ int main(int argc, char** argv){
     {
         std::cout << "Usage: " 
                   << argv[0] 
-                  << " <array length> <benchmark repeats> -v(optional) -r(optional)\n";
+                  << " <array length> <benchmark repeats> -v(validate) -r(reduced output) -s(standalone timings)\n";
         exit(EXIT_FAILURE);
     } 
 
@@ -38,6 +38,7 @@ int main(int argc, char** argv){
     unsigned int runs = atoi(argv[2]);
     bool validating = false;
     bool reduced_output = false;
+    bool standalone = false;
 
     for (int i=0; i<argc; i++) {
         if (strcmp(argv[i], "-v") == 0) {
@@ -45,6 +46,9 @@ int main(int argc, char** argv){
         }
         if (strcmp(argv[i], "-r") == 0) {
             reduced_output = true;
+        }
+        if (strcmp(argv[i], "-s") == 0) {
+            standalone = true;
         }
     }
 
@@ -60,6 +64,9 @@ int main(int argc, char** argv){
     else {
         std::cout << "Skipping output validation\n";
     }
+    if (standalone) {
+        std::cout << "Creating new datasets for each run\n";
+    }
 
     array_type* input_array;
     array_type* output_array;
@@ -73,7 +80,6 @@ int main(int argc, char** argv){
 
     CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
     CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
-
     init_sparse_array(input_array, array_len, 10000);
 
     CCC(cudaEventCreate(&start_event));
@@ -101,23 +107,45 @@ int main(int argc, char** argv){
         );    
         gettimeofday(&cpu_end_time, NULL); 
 
+        if (standalone) {
+            CCC(cudaFree(input_array));
+            CCC(cudaFree(output_array));
+        }
+
         cpu_time_ms = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
             - (cpu_start_time.tv_usec+(1e6*cpu_start_time.tv_sec));
         std::cout << "CPU mapping took: " << cpu_time_ms << "ms\n";
     }
 
-
     { // Benchmark a single GPU
         std::cout << "\nBenchmarking single GPU map ***********************\n";
 
         std::cout << "  Running a warmup\n";
+
+        if (standalone) {
+            CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+            CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
+            init_sparse_array(input_array, array_len, 10000);
+        }
+
         singleGpuMapping<PlusX<array_type>>(
             input_array, constant, output_array, array_len
         );
         CCC(cudaEventRecord(end_event));
         CCC(cudaEventSynchronize(end_event));
 
+        if (standalone) {
+            CCC(cudaFree(input_array));
+            CCC(cudaFree(output_array));
+        }
+
         for (int run=0; run<runs; run++) {
+            if (standalone) {
+                CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+                CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
+                init_sparse_array(input_array, array_len, 10000);
+            }
+
             CCC(cudaEventRecord(start_event));
             singleGpuMapping<PlusX<array_type>>(
                 input_array, constant, output_array, array_len
@@ -147,6 +175,11 @@ int main(int argc, char** argv){
                     break;
                 }
             }
+
+            if (standalone) {
+                CCC(cudaFree(input_array));
+                CCC(cudaFree(output_array));
+            }
         }
 
          single_gpu_time_ms = print_timing_stats(
@@ -159,13 +192,32 @@ int main(int argc, char** argv){
         std::cout << "\nBenchmarking multi GPU map ************************\n";
 
         std::cout << "  Running a warmup\n";
+
+        if (standalone) {
+            CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+            CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
+            init_sparse_array(input_array, array_len, 10000);
+        }
+
         multiGpuMapping<PlusX<array_type>>(
             input_array, constant, output_array, array_len
         );
+
+        if (standalone) {
+            CCC(cudaFree(input_array));
+            CCC(cudaFree(output_array));
+        }
+
         CCC(cudaEventRecord(end_event));
         CCC(cudaEventSynchronize(end_event));
 
         for (int run=0; run<runs; run++) {
+            if (standalone) {
+                CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+                CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
+                init_sparse_array(input_array, array_len, 10000);
+            }
+
             CCC(cudaEventRecord(start_event));
             multiGpuMapping<PlusX<array_type>>(
                 input_array, constant, output_array, array_len
@@ -196,6 +248,11 @@ int main(int argc, char** argv){
                     break;
                 }
             }
+
+            if (standalone) {
+                CCC(cudaFree(input_array));
+                CCC(cudaFree(output_array));
+            }
         }
 
         multi_gpu_time_ms = print_timing_stats(
@@ -217,6 +274,13 @@ int main(int argc, char** argv){
         CCC(cudaSetDevice(origin_device));
 
         std::cout << "  Running a warmup\n";
+
+        if (standalone) {
+            CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+            CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
+            init_sparse_array(input_array, array_len, 10000);
+        }
+
         multiGpuStreamMapping<PlusX<array_type>>(
             input_array, constant, output_array, array_len, streams, 
             device_count
@@ -224,7 +288,18 @@ int main(int argc, char** argv){
         CCC(cudaEventRecord(end_event));
         CCC(cudaEventSynchronize(end_event));
 
+        if (standalone) {
+            CCC(cudaFree(input_array));
+            CCC(cudaFree(output_array));
+        }
+
         for (int run=0; run<runs; run++) {
+            if (standalone) {
+                CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+                CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
+                init_sparse_array(input_array, array_len, 10000);
+            }
+
             CCC(cudaEventRecord(start_event));
             multiGpuStreamMapping<PlusX<array_type>>(
                 input_array, constant, output_array, array_len, streams, 
@@ -256,6 +331,11 @@ int main(int argc, char** argv){
                     break;
                 }
             }
+
+            if (standalone) {
+                CCC(cudaFree(input_array));
+                CCC(cudaFree(output_array));
+            }
         }
 
         print_timing_stats(
@@ -279,6 +359,13 @@ int main(int argc, char** argv){
 
         unsigned long int array_offset = 0;
         unsigned long int block_range;
+
+        if (standalone) {
+            CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+            CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
+            init_sparse_array(input_array, array_len, 10000);
+        }
+
         for (int device=0; device<device_count; device++) {
             block_range = min(dev_block_count, array_len-array_offset);
 
@@ -304,7 +391,36 @@ int main(int argc, char** argv){
         CCC(cudaEventRecord(end_event));
         CCC(cudaEventSynchronize(end_event));
 
+        if (standalone) {
+            CCC(cudaFree(input_array));
+            CCC(cudaFree(output_array));
+        }
+
         for (int run=0; run<runs; run++) {
+            if (standalone) {
+                CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+                CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
+                init_sparse_array(input_array, array_len, 10000);
+            }
+
+            for (int device=0; device<device_count; device++) {
+                block_range = min(dev_block_count, array_len-array_offset);
+
+                CCC(cudaMemAdvise(
+                    input_array+array_offset, 
+                    block_range*sizeof(array_type), 
+                    cudaMemAdviseSetPreferredLocation, 
+                    device
+                ));
+                CCC(cudaMemAdvise(
+                    output_array+array_offset, 
+                    block_range*sizeof(array_type), 
+                    cudaMemAdviseSetPreferredLocation, 
+                    device
+                ));
+                array_offset = array_offset + block_range;
+            }
+
             CCC(cudaEventRecord(start_event));
             multiGpuMapping<PlusX<array_type>>(
                 input_array, constant, output_array, array_len
@@ -335,12 +451,22 @@ int main(int argc, char** argv){
                     break;
                 }
             }
+
+            if (standalone) {
+                CCC(cudaFree(input_array));
+                CCC(cudaFree(output_array));
+            }
         }
 
         print_timing_stats(
             timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms,
             multi_gpu_time_ms
         );
+    }
+
+    if (standalone == false) {
+        CCC(cudaFree(input_array));
+        CCC(cudaFree(output_array));
     }
 
     std::cout << "\n";

@@ -76,7 +76,7 @@ int main(int argc, char** argv){
     {
         std::cout << "Usage: " 
                   << argv[0] 
-                  << " <array length> <benchmark repeats> -v(optional) -s(optional) -r(optional)\n";
+                  << " <array length> <benchmark repeats> -v(validation) -s(skip processing) -r(reduced output)\n";
         exit(EXIT_FAILURE);
     } 
 
