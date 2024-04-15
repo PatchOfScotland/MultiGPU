@@ -85,6 +85,7 @@ int main(int argc, char** argv){
     int device_count;
     CCC(cudaGetDeviceCount(&device_count));
 
+    initialise_hardware();
     check_device_count();
 
     { // Get CPU baseline

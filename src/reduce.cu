@@ -141,6 +141,7 @@ int main(int argc, char** argv){
         init_sparse_array(input_array, array_len, 10000);
     }
 
+    initialise_hardware();
     check_device_count();
 
     { // Get CPU baseline
