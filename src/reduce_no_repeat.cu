@@ -321,6 +321,8 @@ int main(int argc, char** argv){
             remainder -= 1;
             running_total += this_block;
 
+            std::cout << "A: " << device << ", " << this_block*sizeof(array_type) << ", " << input_array+device_start << "  \n";
+
             CCC(cudaMemAdvise(
                 input_array+device_start, 
                 this_block*sizeof(array_type), 
@@ -344,12 +346,15 @@ int main(int argc, char** argv){
             CCC(cudaMallocManaged(&output, sizeof(return_type)));
             init_sparse_array(input_array, array_len, 10000);
             
+            running_total = 0;
             for (int device=0; device<device_count; device++) {           
                 device_start = running_total;
                 this_block = (remainder > 0) ? per_device + 1 : per_device;
                 remainder -= 1;
                 running_total += this_block;
 
+                std::cout << "B: " << device << ", " << this_block*sizeof(array_type) << ", " << input_array+device_start << "  \n";
+                
                 CCC(cudaMemAdvise(
                     input_array+device_start, 
                     this_block*sizeof(array_type), 
@@ -584,6 +589,7 @@ int main(int argc, char** argv){
             CCC(cudaMallocManaged(&output, sizeof(return_type)));
             init_sparse_array(input_array, array_len, 10000);
 
+            running_total = 0;
             for (int device=0; device<device_count; device++) {           
                 device_start = running_total;
                 this_block = (remainder > 0) ? per_device + 1 : per_device;
