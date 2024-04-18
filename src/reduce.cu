@@ -76,14 +76,14 @@ int main(int argc, char** argv){
     {
         std::cout << "Usage: " 
                   << argv[0] 
-                  << " <array length> <benchmark repeats> -v(validation) -s(skip processing) -r(reduced output)\n";
+                  << " <array length> <benchmark repeats>-v(validation) -s(standalone) -r(reduced output)\n";
         exit(EXIT_FAILURE);
     } 
 
     unsigned long int array_len = strtoul(argv[1], NULL, 0);
     unsigned int runs = atoi(argv[2]);
     bool validating = false;
-    bool skip = false;
+    bool standalone = false;
     bool reduced_output = false;
 
     for (int i=0; i<argc; i++) {
@@ -91,7 +91,7 @@ int main(int argc, char** argv){
             validating = true;
         }
         if (strcmp(argv[i], "-s") == 0) {
-            skip = true;
+            standalone = true;
         }
         if (strcmp(argv[i], "-r") == 0) {
             reduced_output = true;
@@ -110,25 +110,22 @@ int main(int argc, char** argv){
     else {
         std::cout << "Skipping output validation\n";
     }
-    if (skip) {
-        std::cout << "Skipping any significant processing\n";
+    if (standalone) {
+        std::cout << "Creating new datasets for each run\n";
     }
 
     array_type* input_array;
     return_type* output;
     return_type validation_result;
-    cudaEvent_t start_event;
-    cudaEvent_t end_event;
-    float runtime_ms;
+
     float cpu_time_ms = -1;
     float single_gpu_time_ms = -1;
     float multi_gpu_time_ms = -1;
 
     CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
     CCC(cudaMallocManaged(&output, sizeof(return_type)));
+    init_sparse_array(input_array, array_len, 10000);
 
-    CCC(cudaEventCreate(&start_event));
-    CCC(cudaEventCreate(&end_event));
     float* timing_ms = (float*)calloc(runs, sizeof(float));
 
     int origin_device;
@@ -136,32 +133,20 @@ int main(int argc, char** argv){
     int device_count;
     CCC(cudaGetDeviceCount(&device_count));
 
-    std::cout << "Initialising input array\n";
-    if (skip == false) {
-        init_sparse_array(input_array, array_len, 10000);
-    }
-
-    initialise_hardware();
     check_device_count();
 
     { // Get CPU baseline
         std::cout << "Getting CPU result\n";
 
-        struct timeval cpu_start_time;
-        struct timeval cpu_end_time;
+        cpu_time_ms = cpuReduction<Add<array_type,return_type>>(
+            input_array, &validation_result, array_len
+        );
 
-        gettimeofday(&cpu_start_time, NULL);
-
-        if (skip == false) {
-            cpuReduction<Add<array_type,return_type>>(
-                input_array, 
-                &validation_result, array_len
-            );    
+        if (standalone) {
+            CCC(cudaFree(input_array));
+            CCC(cudaFree(output));
         }
-        gettimeofday(&cpu_end_time, NULL); 
 
-        cpu_time_ms = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
-            - (cpu_start_time.tv_usec+(1e6*cpu_start_time.tv_sec));
         std::cout << "CPU reduction took: " << cpu_time_ms << "ms\n";
         std::cout << "CPU throughput:     " << (float)datasize / cpu_time_ms << "GB/sec\n";
     }
@@ -170,23 +155,32 @@ int main(int argc, char** argv){
         std::cout << "\nBenchmarking commutative single GPU reduce ********\n";
 
         std::cout << "  Running a warmup\n";
+
+        if (standalone) {
+            CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+            CCC(cudaMallocManaged(&output, sizeof(return_type)));
+            init_sparse_array(input_array, array_len, 10000);
+        }
+
         singleGpuReduction<Add<array_type,return_type>>(
-            input_array, output, array_len, skip
+            input_array, output, array_len
         );
-        CCC(cudaEventRecord(end_event));
-        CCC(cudaEventSynchronize(end_event));
+
+        if (standalone) {
+            CCC(cudaFree(input_array));
+            CCC(cudaFree(output));
+        }
 
         for (int run=0; run<runs; run++) {
-            CCC(cudaEventRecord(start_event));
-            singleGpuReduction<Add<array_type,return_type>>(
-                input_array, output, array_len, skip
-            );
-            CCC(cudaEventRecord(end_event));
-            CCC(cudaEventSynchronize(end_event));
-            CCC(cudaPeekAtLastError());
+            if (standalone) {
+                CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+                CCC(cudaMallocManaged(&output, sizeof(return_type)));
+                init_sparse_array(input_array, array_len, 10000);
+            }
 
-            CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
-            timing_ms[run] = runtime_ms;
+            timing_ms[run] = singleGpuReduction<Add<array_type,return_type>>(
+                input_array, output, array_len
+            );
 
             if (reduced_output == false) {
                 print_loop_feedback(run, runs);
@@ -214,7 +208,11 @@ int main(int argc, char** argv){
                     break;
                 }
             }
-            *output = 42.0;
+
+            if (standalone) {
+                CCC(cudaFree(input_array));
+                CCC(cudaFree(output));
+            }
         }
 
          single_gpu_time_ms = print_timing_stats(
@@ -226,25 +224,32 @@ int main(int argc, char** argv){
     { // Benchmark commutative multi GPU
         std::cout << "\nBenchmarking commutative multi GPU reduce *********\n";
 
+        if (standalone) {
+            CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+            CCC(cudaMallocManaged(&output, sizeof(return_type)));
+            init_sparse_array(input_array, array_len, 10000);
+        }
+
         std::cout << "  Running a warmup\n";
         multiGpuReduction<Add<array_type,return_type>>(
-            input_array, output, array_len, skip
+            input_array, output, array_len
         );
-        CCC(cudaEventRecord(end_event));
-        CCC(cudaEventSynchronize(end_event));
 
+        if (standalone) {
+            CCC(cudaFree(input_array));
+            CCC(cudaFree(output));
+        }
 
         for (int run=0; run<runs; run++) {
-            CCC(cudaEventRecord(start_event));
-            multiGpuReduction<Add<array_type,return_type>>(
-                input_array, output, array_len, skip
-            );
-            CCC(cudaEventRecord(end_event));
-            CCC(cudaEventSynchronize(end_event));
-            CCC(cudaPeekAtLastError());
+            if (standalone) {
+                CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+                CCC(cudaMallocManaged(&output, sizeof(return_type)));
+                init_sparse_array(input_array, array_len, 10000);
+            }
 
-            CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
-            timing_ms[run] = runtime_ms;
+            timing_ms[run] = multiGpuReduction<Add<array_type,return_type>>(
+                input_array, output, array_len
+            );
 
             if (reduced_output == false) {
                 print_loop_feedback(run, runs);
@@ -272,7 +277,10 @@ int main(int argc, char** argv){
                     break;
                 }
             }
-            *output = 0;
+            if (standalone) {
+                CCC(cudaFree(input_array));
+                CCC(cudaFree(output));
+            }
         }
 
          multi_gpu_time_ms = print_timing_stats(
@@ -283,6 +291,12 @@ int main(int argc, char** argv){
 
     { // Benchmark commutative multi GPU with hints
         std::cout << "\nBenchmarking commutative multi GPU reduce with hints\n";
+
+        if (standalone) {
+            CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+            CCC(cudaMallocManaged(&output, sizeof(return_type)));
+            init_sparse_array(input_array, array_len, 10000);
+        }
 
         unsigned long int per_device = array_len / device_count;
         int remainder = array_len % device_count;
@@ -295,6 +309,8 @@ int main(int argc, char** argv){
             remainder -= 1;
             running_total += this_block;
 
+            std::cout << "A: " << device << ", " << this_block*sizeof(array_type) << ", " << input_array+device_start << "  \n";
+
             CCC(cudaMemAdvise(
                 input_array+device_start, 
                 this_block*sizeof(array_type), 
@@ -305,22 +321,39 @@ int main(int argc, char** argv){
 
         std::cout << "  Running a warmup\n";
         multiGpuReduction<Add<array_type,return_type>>(
-            input_array, output, array_len, skip
+            input_array, output, array_len
         );
-        CCC(cudaEventRecord(end_event));
-        CCC(cudaEventSynchronize(end_event));
+
+        if (standalone) {
+            CCC(cudaFree(input_array));
+            CCC(cudaFree(output));
+        }
 
         for (int run=0; run<runs; run++) {
-            CCC(cudaEventRecord(start_event));
-            multiGpuReduction<Add<array_type,return_type>>(
-                input_array, output, array_len, skip
-            );
-            CCC(cudaEventRecord(end_event));
-            CCC(cudaEventSynchronize(end_event));
-            CCC(cudaPeekAtLastError());
+            if (standalone) {
+                CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+                CCC(cudaMallocManaged(&output, sizeof(return_type)));
+                init_sparse_array(input_array, array_len, 10000);
+            }
 
-            CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
-            timing_ms[run] = runtime_ms;
+            running_total = 0;
+            for (int device=0; device<device_count; device++) {           
+                device_start = running_total;
+                this_block = (remainder > 0) ? per_device + 1 : per_device;
+                remainder -= 1;
+                running_total += this_block;
+
+                CCC(cudaMemAdvise(
+                    input_array+device_start, 
+                    this_block*sizeof(array_type), 
+                    cudaMemAdviseSetPreferredLocation, 
+                    device
+                ));
+            }
+
+            timing_ms[run] = multiGpuReduction<Add<array_type,return_type>>(
+                input_array, output, array_len
+            );
 
             if (reduced_output == false) {
                 print_loop_feedback(run, runs);
@@ -348,7 +381,11 @@ int main(int argc, char** argv){
                     break;
                 }
             }
-            *output = 0;
+
+            if (standalone) {
+                CCC(cudaFree(input_array));
+                CCC(cudaFree(output));
+            }
         }
 
          multi_gpu_time_ms = print_timing_stats(
@@ -363,24 +400,33 @@ int main(int argc, char** argv){
     { // Benchmark associative single GPU
         std::cout << "\nBenchmarking associative single GPU reduce ****\n";
 
+
+        if (standalone) {
+            CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+            CCC(cudaMallocManaged(&output, sizeof(return_type)));
+            init_sparse_array(input_array, array_len, 10000);
+        }
+
         std::cout << "  Running a warmup\n";
         singleGpuReduction<AddNonCommutative<array_type,return_type>>(
-            input_array, output, array_len, skip
+            input_array, output, array_len
         );
-        CCC(cudaEventRecord(end_event));
-        CCC(cudaEventSynchronize(end_event));
+
+        if (standalone) {
+            CCC(cudaFree(input_array));
+            CCC(cudaFree(output));
+        }
 
         for (int run=0; run<runs; run++) {
-            CCC(cudaEventRecord(start_event));
-            singleGpuReduction<AddNonCommutative<array_type,return_type>>(
-                input_array, output, array_len, skip
-            );
-            CCC(cudaEventRecord(end_event));
-            CCC(cudaEventSynchronize(end_event));
-            CCC(cudaPeekAtLastError());
+            if (standalone) {
+                CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+                CCC(cudaMallocManaged(&output, sizeof(return_type)));
+                init_sparse_array(input_array, array_len, 10000);
+            }
 
-            CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
-            timing_ms[run] = runtime_ms;
+            timing_ms[run] = singleGpuReduction<AddNonCommutative<array_type,return_type>>(
+                input_array, output, array_len
+            );
 
             if (reduced_output == false) {
                 print_loop_feedback(run, runs);
@@ -408,7 +454,11 @@ int main(int argc, char** argv){
                     break;
                 }
             }
-            *output = 0;
+
+            if (standalone) {
+                CCC(cudaFree(input_array));
+                CCC(cudaFree(output));
+            }
         }
 
          single_gpu_time_ms = print_timing_stats(
@@ -419,26 +469,32 @@ int main(int argc, char** argv){
 
     { // Benchmark associative multi GPU
         std::cout << "\nBenchmarking associative multi GPU reduce *****\n";
+        if (standalone) {
+            CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+            CCC(cudaMallocManaged(&output, sizeof(return_type)));
+            init_sparse_array(input_array, array_len, 10000);
+        }
 
         std::cout << "  Running a warmup\n";
         multiGpuReduction<AddNonCommutative<array_type,return_type>>(
-            input_array, output, array_len, skip
+            input_array, output, array_len
         );
-        CCC(cudaEventRecord(end_event));
-        CCC(cudaEventSynchronize(end_event));
 
+        if (standalone) {
+            CCC(cudaFree(input_array));
+            CCC(cudaFree(output));
+        }
 
         for (int run=0; run<runs; run++) {
-            CCC(cudaEventRecord(start_event));
-            multiGpuReduction<AddNonCommutative<array_type,return_type>>(
-                input_array, output, array_len, skip
-            );
-            CCC(cudaEventRecord(end_event));
-            CCC(cudaEventSynchronize(end_event));
-            CCC(cudaPeekAtLastError());
+            if (standalone) {
+                CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+                CCC(cudaMallocManaged(&output, sizeof(return_type)));
+                init_sparse_array(input_array, array_len, 10000);
+            }
 
-            CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
-            timing_ms[run] = runtime_ms;
+            timing_ms[run] = multiGpuReduction<AddNonCommutative<array_type,return_type>>(
+                input_array, output, array_len
+            );
 
             if (reduced_output == false) {
                 print_loop_feedback(run, runs);
@@ -466,7 +522,11 @@ int main(int argc, char** argv){
                     break;
                 }
             }
-            *output = 0;
+
+            if (standalone) {
+                CCC(cudaFree(input_array));
+                CCC(cudaFree(output));
+            }
         }
 
          multi_gpu_time_ms = print_timing_stats(
@@ -477,6 +537,12 @@ int main(int argc, char** argv){
 
     { // Benchmark associative multi GPU with hints
         std::cout << "\nBenchmarking associative multi GPU reduce with hints\n";
+
+        if (standalone) {
+            CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+            CCC(cudaMallocManaged(&output, sizeof(return_type)));
+            init_sparse_array(input_array, array_len, 10000);
+        }
 
         unsigned long int per_device = array_len / device_count;
         int remainder = array_len % device_count;
@@ -499,22 +565,39 @@ int main(int argc, char** argv){
 
         std::cout << "  Running a warmup\n";
         multiGpuReduction<AddNonCommutative<array_type,return_type>>(
-            input_array, output, array_len, skip
+            input_array, output, array_len
         );
-        CCC(cudaEventRecord(end_event));
-        CCC(cudaEventSynchronize(end_event));
 
+        if (standalone) {
+            CCC(cudaFree(input_array));
+            CCC(cudaFree(output));
+        }
+        
         for (int run=0; run<runs; run++) {
-            CCC(cudaEventRecord(start_event));
-            multiGpuReduction<AddNonCommutative<array_type,return_type>>(
-                input_array, output, array_len, skip
-            );
-            CCC(cudaEventRecord(end_event));
-            CCC(cudaEventSynchronize(end_event));
-            CCC(cudaPeekAtLastError());
+            if (standalone) {
+                CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
+                CCC(cudaMallocManaged(&output, sizeof(return_type)));
+                init_sparse_array(input_array, array_len, 10000);
+            }
+            
+            running_total = 0;
+            for (int device=0; device<device_count; device++) {           
+                device_start = running_total;
+                this_block = (remainder > 0) ? per_device + 1 : per_device;
+                remainder -= 1;
+                running_total += this_block;
 
-            CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
-            timing_ms[run] = runtime_ms;
+                CCC(cudaMemAdvise(
+                    input_array+device_start, 
+                    this_block*sizeof(array_type), 
+                    cudaMemAdviseSetPreferredLocation, 
+                    device
+                ));
+            }
+
+            timing_ms[run] = multiGpuReduction<AddNonCommutative<array_type,return_type>>(
+                input_array, output, array_len
+            );
 
             if (reduced_output == false) {
                 print_loop_feedback(run, runs);
@@ -542,7 +625,10 @@ int main(int argc, char** argv){
                     break;
                 }
             }
-            *output = 0;
+            if (standalone) {
+                CCC(cudaFree(input_array));
+                CCC(cudaFree(output));
+            }
         }
 
          multi_gpu_time_ms = print_timing_stats(
@@ -551,6 +637,8 @@ int main(int argc, char** argv){
         );
     }
 
-    cudaFree(input_array);
-    cudaFree(output);
+    if (standalone == false) {
+        CCC(cudaFree(input_array));
+        CCC(cudaFree(output));
+    }
 }

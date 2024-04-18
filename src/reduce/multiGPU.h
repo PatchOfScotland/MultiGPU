@@ -135,18 +135,17 @@ void commutative_per_device_management(
 }
 
 template<typename Reduction>
-cudaError_t commutativeMultiGpuReduction(
+float commutativeMultiGpuReduction(
     typename Reduction::InputElement* input_array, 
     typename Reduction::ReturnElement* accumulator, 
-    const unsigned long int array_len,
-    bool skip
+    const unsigned long int array_len
 ) {  
     //// For small enough jobs then just run on a single device
     //// TODO derive this more programatically
     //if (array_len < 2048) {
     //    std::cout << "Small enough input for just a single device\n";
     //    return singleGpuReduction<Reduction>(
-    //        input_array, accumulator, array_len, skip
+    //        input_array, accumulator, array_len
     //    );
     //}
 
@@ -168,6 +167,13 @@ cudaError_t commutativeMultiGpuReduction(
     unsigned long int device_start;
     unsigned long int this_block;
 
+    struct timeval cpu_start_time;
+    struct timeval cpu_end_time;
+
+    // Not sold on this metod of timing. cudaEvents would be better, but final 
+    // reduction is done at cpu level
+    gettimeofday(&cpu_start_time, NULL); 
+
     std::thread threads[device_count];
     for (int device=0; device<device_count; device++) {
         device_start = running_total;
@@ -175,19 +181,15 @@ cudaError_t commutativeMultiGpuReduction(
         remainder -= 1;
         running_total += this_block;
 
-        if (skip == false) {
-            threads[device] = std::thread(
-                commutative_per_device_management<Reduction>, input_array, 
-                &accumulators[device], device_start, device_start + this_block, 
-                dev_block_count, device 
-            );
-        }
+        threads[device] = std::thread(
+            commutative_per_device_management<Reduction>, input_array, 
+            &accumulators[device], device_start, device_start + this_block, 
+            dev_block_count, device 
+        );
     }
 
-    if (skip == false) {
-        for (int device=0; device<device_count; device++) {
-            threads[device].join();        
-        }
+    for (int device=0; device<device_count; device++) {
+        threads[device].join();        
     }
 
     typename Reduction::ReturnElement total;
@@ -195,11 +197,17 @@ cudaError_t commutativeMultiGpuReduction(
     for (int device=0; device<device_count; device++) { 
         total = Reduction::apply(total, accumulators[device]);
     }
+
+    gettimeofday(&cpu_end_time, NULL); 
+
     CCC(cudaSetDevice(origin_device));
 
     *accumulator = total;
  
-    return cudaGetLastError();
+    float time_ms = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
+            - (cpu_start_time.tv_usec+(1e6*cpu_start_time.tv_sec));
+    
+    return time_ms;
 }
 
 template<typename Reduction>
@@ -223,7 +231,7 @@ void associative_per_device_management(
     *device_accumulator = Reduction::init();
 
     associativeSingleGpuReduction<Reduction>(
-        sub_input_array, device_accumulator, sub_array_len, false
+        sub_input_array, device_accumulator, sub_array_len
     );
 
     *accumulator = *device_accumulator;
@@ -232,11 +240,10 @@ void associative_per_device_management(
 }
 
 template<typename Reduction>
-cudaError_t associativeMultiGpuReduction(
+float associativeMultiGpuReduction(
     typename Reduction::InputElement* input_array, 
     typename Reduction::ReturnElement* accumulator, 
-    const unsigned long int array_len,
-    bool skip
+    const unsigned long int array_len
 ) {
     int origin_device;
     CCC(cudaGetDevice(&origin_device));
@@ -256,6 +263,13 @@ cudaError_t associativeMultiGpuReduction(
     unsigned long int device_start;
     unsigned long int this_block;
 
+    struct timeval cpu_start_time;
+    struct timeval cpu_end_time;
+
+    // Not sold on this metod of timing. cudaEvents would be better, but final 
+    // reduction is done at cpu level
+    gettimeofday(&cpu_start_time, NULL); 
+
     std::thread threads[device_count];
     for (int device=0; device<device_count; device++) {
         device_start = running_total;
@@ -263,47 +277,47 @@ cudaError_t associativeMultiGpuReduction(
         remainder -= 1;
         running_total += this_block;
 
-        if (skip == false) {
-            threads[device] = std::thread(
-                associative_per_device_management<Reduction>, input_array, 
-                &accumulators[device], device_start, device_start + this_block, 
-                dev_block_count, device 
-            );
-        }
+        threads[device] = std::thread(
+            associative_per_device_management<Reduction>, input_array, 
+            &accumulators[device], device_start, device_start + this_block, 
+            dev_block_count, device 
+        );
     }
 
-    if (skip == false) {
-        for (int device=0; device<device_count; device++) {
-            threads[device].join();        
-        }
+    for (int device=0; device<device_count; device++) {
+        threads[device].join();        
     }
 
     typename Reduction::ReturnElement total = Reduction::init();
     for (int device=0; device<device_count; device++) { 
         total = Reduction::apply(total, accumulators[device]);
     }
+    gettimeofday(&cpu_end_time, NULL); 
+
     *accumulator = total;
  
     CCC(cudaSetDevice(origin_device));
-
-    return cudaGetLastError();
+ 
+    float time_ms = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
+            - (cpu_start_time.tv_usec+(1e6*cpu_start_time.tv_sec));
+    
+    return time_ms;
 }
 
 template<typename Reduction>
-cudaError_t multiGpuReduction(
+float multiGpuReduction(
     typename Reduction::InputElement* input_array, 
     typename Reduction::ReturnElement* accumulator, 
-    const unsigned long int array_len,
-    bool skip
+    const unsigned long int array_len
 ) {
     if (Reduction::commutative == true) {
         return commutativeMultiGpuReduction<Reduction>(
-            input_array, accumulator, array_len, skip
+            input_array, accumulator, array_len
         );
     }
     else {
         return associativeMultiGpuReduction<Reduction>(
-            input_array, accumulator, array_len, skip
+            input_array, accumulator, array_len
         );
     }
 }

@@ -84,11 +84,10 @@ __global__ void commutativeSingleGpuReductionKernelFinal(
 }
 
 template<typename Reduction>
-cudaError_t commutativeSingleGpuReduction(
+float commutativeSingleGpuReduction(
     typename Reduction::InputElement* input_array, 
     typename Reduction::ReturnElement* accumulator, 
-    const unsigned long int array_len,
-    bool skip
+    const unsigned long int array_len
 ) {
     size_t block_count = min(
         (array_len + BLOCK_SIZE) / BLOCK_SIZE, PARALLEL_BLOCKS
@@ -99,32 +98,32 @@ cudaError_t commutativeSingleGpuReduction(
         block_count*sizeof(typename Reduction::ReturnElement))
     );
 
+    cudaEvent_t start_event;
+    CCC(cudaEventCreate(&start_event));
+    cudaEvent_t end_event;
+    CCC(cudaEventCreate(&end_event));
     cudaEvent_t sync_event;
     CCC(cudaEventCreate(&sync_event));
 
-    if (skip == false) {
-        commutativeSingleGpuReductionKernelInitial<Reduction><<<
-            block_count, BLOCK_SIZE
-        >>>(
-            input_array, array_len, (block_count*BLOCK_SIZE), global_results
-        );
-    }
+    CCC(cudaEventRecord(start_event));
+    commutativeSingleGpuReductionKernelInitial<Reduction><<<
+        block_count, BLOCK_SIZE
+    >>>(
+        input_array, array_len, (block_count*BLOCK_SIZE), global_results
+    );
 
     CCC(cudaEventRecord(sync_event));
     CCC(cudaEventSynchronize(sync_event));
 
-    if (skip == false) {
-        commutativeSingleGpuReductionKernelFinal<Reduction><<<1, BLOCK_SIZE>>>(
-            global_results, accumulator, block_count, BLOCK_SIZE
-        );
-    }
-
-    CCC(cudaEventRecord(sync_event));
-    CCC(cudaEventSynchronize(sync_event));
+    commutativeSingleGpuReductionKernelFinal<Reduction><<<1, BLOCK_SIZE>>>(
+        global_results, accumulator, block_count, BLOCK_SIZE
+    );
+    CCC(cudaEventRecord(end_event));
+    CCC(cudaEventSynchronize(end_event));
 
     cudaFree(global_results);
 
-    return cudaGetLastError();
+    return get_runtime(start_event, end_event);
 }
 
 template<typename Reduction, int CHUNK>
@@ -216,11 +215,10 @@ __global__ void associativeSingleGpuReductionKernelFinal(
 }
 
 template<typename Reduction>
-cudaError_t associativeSingleGpuReduction(
+float associativeSingleGpuReduction(
     typename Reduction::InputElement* input_array, 
     typename Reduction::ReturnElement* accumulator, 
-    const unsigned long int array_len,
-    bool skip
+    const unsigned long int array_len
 ) {
     initialise_hardware();
 
@@ -240,56 +238,55 @@ cudaError_t associativeSingleGpuReduction(
         &global_results, block_count*sizeof(typename Reduction::ReturnElement)
     ));
 
+    cudaEvent_t start_event;
+    CCC(cudaEventCreate(&start_event));
+    cudaEvent_t end_event;
+    CCC(cudaEventCreate(&end_event));
     cudaEvent_t sync_event;
     CCC(cudaEventCreate(&sync_event));
 
-    if (skip == false) {
-        associativeSingleGpuReductionKernelInitial<Reduction, CHUNK><<<
-            block_count, BLOCK_SIZE, shared_memory_size
-        >>>(
-            input_array, array_len, (block_count*BLOCK_SIZE), global_results, 
-            num_sequential_blocks
-        );
-    }
+    CCC(cudaEventRecord(start_event));
+    associativeSingleGpuReductionKernelInitial<Reduction, CHUNK><<<
+        block_count, BLOCK_SIZE, shared_memory_size
+    >>>(
+        input_array, array_len, (block_count*BLOCK_SIZE), global_results, 
+        num_sequential_blocks
+    );
 
     CCC(cudaEventRecord(sync_event));
     CCC(cudaEventSynchronize(sync_event));
 
-    if (skip == false) {
-        const uint32_t block_size = closestMul32(block_count);
-        shared_memory_size = 
-            block_size * sizeof(typename Reduction::ReturnElement);
+    const uint32_t block_size = closestMul32(block_count);
+    shared_memory_size = 
+        block_size * sizeof(typename Reduction::ReturnElement);
 
-        associativeSingleGpuReductionKernelFinal<Reduction, CHUNK><<<
-            1, block_size, shared_memory_size
-        >>>(
-            global_results, accumulator, block_count
-        );
-    }
-
-    CCC(cudaEventRecord(sync_event));
-    CCC(cudaEventSynchronize(sync_event));
+    associativeSingleGpuReductionKernelFinal<Reduction, CHUNK><<<
+        1, block_size, shared_memory_size
+    >>>(
+        global_results, accumulator, block_count
+    );
+    CCC(cudaEventRecord(end_event));
+    CCC(cudaEventSynchronize(end_event));
 
     cudaFree(global_results);
 
-    return cudaGetLastError();
+    return get_runtime(start_event, end_event);
 }
 
 template<typename Reduction>
-cudaError_t singleGpuReduction(
+float singleGpuReduction(
     typename Reduction::InputElement* input_array, 
     typename Reduction::ReturnElement* accumulator, 
-    const unsigned long int array_len,
-    bool skip
+    const unsigned long int array_len
 ) {
     if (Reduction::commutative == true) {
         return commutativeSingleGpuReduction<Reduction>(
-            input_array, accumulator, array_len, skip
+            input_array, accumulator, array_len
         );
     }
     else {
         return associativeSingleGpuReduction<Reduction>(
-            input_array, accumulator, array_len, skip
+            input_array, accumulator, array_len
         );
     }
 }

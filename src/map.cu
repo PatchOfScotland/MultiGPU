@@ -26,7 +26,7 @@ class PlusX {
 
 
 int main(int argc, char** argv){
-    if (argc < 4)
+    if (argc < 3)
     {
         std::cout << "Usage: " 
                   << argv[0] 
@@ -68,12 +68,15 @@ int main(int argc, char** argv){
         std::cout << "Creating new datasets for each run\n";
     }
 
+    int origin_device;
+    CCC(cudaGetDevice(&origin_device));
+    int device_count;
+    CCC(cudaGetDeviceCount(&device_count));
+
     array_type* input_array;
     array_type* output_array;
     array_type constant = 0.1;
-    cudaEvent_t start_event;
-    cudaEvent_t end_event;
-    float runtime_ms;
+
     float cpu_time_ms = -1;
     float single_gpu_time_ms = -1;
     float multi_gpu_time_ms = -1;
@@ -82,14 +85,7 @@ int main(int argc, char** argv){
     CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
     init_sparse_array(input_array, array_len, 10000);
 
-    CCC(cudaEventCreate(&start_event));
-    CCC(cudaEventCreate(&end_event));
     float* timing_ms = (float*)calloc(runs, sizeof(float));
-
-    int origin_device;
-    CCC(cudaGetDevice(&origin_device));
-    int device_count;
-    CCC(cudaGetDeviceCount(&device_count));
 
     initialise_hardware();
     check_device_count();
@@ -97,23 +93,16 @@ int main(int argc, char** argv){
     { // Get CPU baseline
         std::cout << "Getting CPU baseline\n";
 
-        struct timeval cpu_start_time;
-        struct timeval cpu_end_time;
-
-        gettimeofday(&cpu_start_time, NULL); 
-        cpuMapping(
+        cpu_time_ms = cpuMapping(
             PlusConst<array_type>, input_array, constant, output_array, 
             array_len
         );    
-        gettimeofday(&cpu_end_time, NULL); 
 
         if (standalone) {
             CCC(cudaFree(input_array));
             CCC(cudaFree(output_array));
         }
 
-        cpu_time_ms = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
-            - (cpu_start_time.tv_usec+(1e6*cpu_start_time.tv_sec));
         std::cout << "CPU mapping took: " << cpu_time_ms << "ms\n";
     }
 
@@ -131,8 +120,6 @@ int main(int argc, char** argv){
         singleGpuMapping<PlusX<array_type>>(
             input_array, constant, output_array, array_len
         );
-        CCC(cudaEventRecord(end_event));
-        CCC(cudaEventSynchronize(end_event));
 
         if (standalone) {
             CCC(cudaFree(input_array));
@@ -146,16 +133,9 @@ int main(int argc, char** argv){
                 init_sparse_array(input_array, array_len, 10000);
             }
 
-            CCC(cudaEventRecord(start_event));
-            singleGpuMapping<PlusX<array_type>>(
+            timing_ms[run] = singleGpuMapping<PlusX<array_type>>(
                 input_array, constant, output_array, array_len
             );
-            CCC(cudaEventRecord(end_event));
-            CCC(cudaEventSynchronize(end_event));
-            CCC(cudaPeekAtLastError());
-
-            CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
-            timing_ms[run] = runtime_ms;
 
             if (reduced_output == false) {
                 print_loop_feedback(run, runs);
@@ -208,9 +188,6 @@ int main(int argc, char** argv){
             CCC(cudaFree(output_array));
         }
 
-        CCC(cudaEventRecord(end_event));
-        CCC(cudaEventSynchronize(end_event));
-
         for (int run=0; run<runs; run++) {
             if (standalone) {
                 CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
@@ -218,17 +195,9 @@ int main(int argc, char** argv){
                 init_sparse_array(input_array, array_len, 10000);
             }
 
-            CCC(cudaEventRecord(start_event));
-            multiGpuMapping<PlusX<array_type>>(
+            timing_ms[run] = multiGpuMapping<PlusX<array_type>>(
                 input_array, constant, output_array, array_len
             );
-
-            CCC(cudaEventRecord(end_event));
-            CCC(cudaEventSynchronize(end_event));
-            CCC(cudaPeekAtLastError());
-
-            CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
-            timing_ms[run] = runtime_ms;
 
             if (reduced_output == false) {
                 print_loop_feedback(run, runs);
@@ -285,8 +254,6 @@ int main(int argc, char** argv){
             input_array, constant, output_array, array_len, streams, 
             device_count
         );
-        CCC(cudaEventRecord(end_event));
-        CCC(cudaEventSynchronize(end_event));
 
         if (standalone) {
             CCC(cudaFree(input_array));
@@ -300,18 +267,10 @@ int main(int argc, char** argv){
                 init_sparse_array(input_array, array_len, 10000);
             }
 
-            CCC(cudaEventRecord(start_event));
-            multiGpuStreamMapping<PlusX<array_type>>(
+            timing_ms[run] = multiGpuStreamMapping<PlusX<array_type>>(
                 input_array, constant, output_array, array_len, streams, 
                 device_count
             );
-
-            CCC(cudaEventRecord(end_event));
-            CCC(cudaEventSynchronize(end_event)); 
-            CCC(cudaPeekAtLastError());
-
-            CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
-            timing_ms[run] = runtime_ms;
 
             if (reduced_output == false) {
                 print_loop_feedback(run, runs);
@@ -388,8 +347,6 @@ int main(int argc, char** argv){
         multiGpuMapping<PlusX<array_type>>(
             input_array, constant, output_array, array_len
         );
-        CCC(cudaEventRecord(end_event));
-        CCC(cudaEventSynchronize(end_event));
 
         if (standalone) {
             CCC(cudaFree(input_array));
@@ -421,17 +378,9 @@ int main(int argc, char** argv){
                 array_offset = array_offset + block_range;
             }
 
-            CCC(cudaEventRecord(start_event));
-            multiGpuMapping<PlusX<array_type>>(
+            timing_ms[run] = multiGpuMapping<PlusX<array_type>>(
                 input_array, constant, output_array, array_len
             );
-
-            CCC(cudaEventRecord(end_event));
-            CCC(cudaEventSynchronize(end_event));
-            CCC(cudaPeekAtLastError());
-
-            CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
-            timing_ms[run] = runtime_ms;
 
             if (reduced_output == false) {
                 print_loop_feedback(run, runs);

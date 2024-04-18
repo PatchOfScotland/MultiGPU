@@ -52,9 +52,50 @@ inline void cuda_assert(
 void check_device_count() {
     int device_count;
     CCC(cudaGetDeviceCount(&device_count));
+    
     if (device_count == 1) {
         std::cout << "!!! Only a single device detected !!!\n";
     }
+}
+
+void setup_events(
+    cudaEvent_t** events_ptr, int origin_device, int device_count
+) {
+    cudaEvent_t* events = *events_ptr;
+    
+    for (int device=0; device<device_count; device++) {
+        cudaSetDevice(device);
+
+        cudaEvent_t event;
+        CCC(cudaEventCreate(&event));
+        events[device] = event;
+    }
+
+    cudaSetDevice(origin_device);
+}
+
+float get_runtime(
+    cudaEvent_t start_event, cudaEvent_t end_event
+) {
+    float runtime_ms;
+    CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
+    return runtime_ms;
+}
+
+// Not quite true runtime but will do for now
+float get_mean_runtime(
+    int devices, cudaEvent_t** start_events_ptr, cudaEvent_t** end_events_ptr
+) {
+    cudaEvent_t* start_events = *start_events_ptr;
+    cudaEvent_t* end_events = *end_events_ptr;
+
+    float total = 0;
+
+    for (int device=0; device<devices; device++) {
+        total += get_runtime(start_events[device], end_events[device]);
+    }
+
+    return total/devices;
 }
 
 /**

@@ -9,14 +9,26 @@ T PlusConst(const T inputElement, const T x) {
 // input array, with the output in a new output array. Opperates entirely on 
 // the CPU. 
 template<typename F, typename T>
-void cpuMapping(
+float cpuMapping(
     F mapped_function, const T* input_array, const T constant, T* output_array, 
     const unsigned long int array_len
-) {  
+) { 
+    struct timeval cpu_start_time;
+    struct timeval cpu_end_time;
+
+    gettimeofday(&cpu_start_time, NULL); 
+
     #pragma omp parallel for
     for (unsigned long int i=0; i<array_len; i++) {
         output_array[i] = mapped_function(input_array[i], constant);
     }
+
+    gettimeofday(&cpu_end_time, NULL); 
+
+    float time_ms = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
+            - (cpu_start_time.tv_usec+(1e6*cpu_start_time.tv_sec));
+    
+    return time_ms;
 }
 
 // Checking function, does not generate any data, but takes an input and 

@@ -22,6 +22,12 @@ void init_sparse_array(float* arr, unsigned long int array_len, int n) {
 }
 
 template<class T>
+void init_matrix(T* data, uint64_t size) {
+    for (uint64_t i = 0; i < size; i++)
+        data[i] = rand() / (T)RAND_MAX;
+}
+
+template<class T>
 bool compare_arrays(T* array_1, T* array_2, size_t array_len){
 
     bool status = true;
@@ -38,13 +44,30 @@ template<class T>
 void print_array(T* timing_array, size_t array_len) {
     for (int i=0; i<array_len; i++) {
         if (i==0) {
-            std::cout << timing_array[i];
+            printf(timing_array[i]);
         }
         else if (i==array_len-1) {
             std::cout << ", " << timing_array[i] << "\n";
         }
         else {
             std::cout << ", " << timing_array[i];
+        }
+    }
+}
+
+template<class T>
+void print_matrix(T* matrix, size_t width, size_t height) {
+    for (int c=0; c<height; c++) {
+        for (int r=0; r<width; r++) {
+            if (r==0) {
+                std::cout << matrix[r+(width*c)];
+            }
+            else if (r==width-1) {
+                std::cout << ", " << matrix[r+(width*c)] << "\n";
+            }
+            else {
+                std::cout << ", " << matrix[r+(width*c)];
+            }
         }
     }
 }

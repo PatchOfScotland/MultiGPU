@@ -1,5 +1,5 @@
 FLAGS=-Xcompiler -fopenmp -O3
-PROGRAMS=map reduce
+PROGRAMS=map reduce matmul
 
 all: $(PROGRAMS)
 
@@ -10,6 +10,10 @@ map:
 reduce: 
 	mkdir -p build
 	nvcc src/reduce.cu -o $^ build/reduce $(FLAGS)
+
+matmul:
+	mkdir -p build
+	nvcc src/matmul.cu -o $^ build/matmul $(FLAGS)
 
 map_bench:
 	make map

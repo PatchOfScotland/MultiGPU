@@ -1,18 +1,7 @@
-template<typename MappedFunction>
-__global__ void singleGpuMappingKernel(
-    typename MappedFunction::InputElement* input_array, 
-    typename MappedFunction::X x, 
-    typename MappedFunction::ReturnElement* output_array, 
-    const int array_len
-) {
-    size_t index = blockDim.x * blockIdx.x + threadIdx.x;
-    if (index < (blockDim.x * gridDim.x)) {
-        output_array[index] = MappedFunction::apply(input_array[index], x);
-    }
-}
+#include "kernels.cu.h"
 
 template<typename MappedFunction>
-cudaError_t singleGpuMapping(
+float singleGpuMapping(
     typename MappedFunction::InputElement* input_array, 
     typename MappedFunction::X x, 
     typename MappedFunction::ReturnElement* output_array, 
@@ -20,9 +9,17 @@ cudaError_t singleGpuMapping(
 ) {  
     size_t block_count = (array_len + BLOCK_SIZE - 1) / BLOCK_SIZE;
     
-    singleGpuMappingKernel<MappedFunction><<<block_count, BLOCK_SIZE>>>(
+    cudaEvent_t start_event;
+    CCC(cudaEventCreate(&start_event));
+    cudaEvent_t end_event;
+    CCC(cudaEventCreate(&end_event));
+
+    CCC(cudaEventRecord(start_event));
+    mappingKernel<MappedFunction><<<block_count, BLOCK_SIZE>>>(
         input_array, x, output_array, array_len
     );
+    CCC(cudaEventRecord(end_event));
+    CCC(cudaEventSynchronize(end_event));
 
-    return cudaGetLastError();
+    return get_runtime(start_event, end_event);
 }
