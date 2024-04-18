@@ -309,8 +309,6 @@ int main(int argc, char** argv){
             remainder -= 1;
             running_total += this_block;
 
-            std::cout << "A: " << device << ", " << this_block*sizeof(array_type) << ", " << input_array+device_start << "  \n";
-
             CCC(cudaMemAdvise(
                 input_array+device_start, 
                 this_block*sizeof(array_type), 
