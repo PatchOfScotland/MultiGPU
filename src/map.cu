@@ -93,9 +93,8 @@ int main(int argc, char** argv){
     { // Get CPU baseline
         std::cout << "Getting CPU baseline\n";
 
-        cpu_time_ms = cpuMapping(
-            PlusConst<array_type>, input_array, constant, output_array, 
-            array_len
+        cpu_time_ms = cpuMapping<PlusX<array_type>>(
+            input_array, constant, output_array, array_len
         );    
 
         if (standalone) {
@@ -144,10 +143,9 @@ int main(int argc, char** argv){
             // do this at the end as reading output array will shift it back to 
             // the host
             if (validating && run==runs-1) {
-                if(cpuValidation(
-                    PlusConst<array_type>, input_array, constant, 
-                    output_array, array_len)
-                ){
+                if(cpuValidation<PlusX<array_type>>(
+                    input_array, constant, output_array, array_len
+                )){
                     std::cout << "  Result is correct\n";
                 } else {
                     std::cout << "  Result is incorrect. Skipping any "
@@ -206,10 +204,9 @@ int main(int argc, char** argv){
             // do this at the end as reading output array will shift it back to 
             // the host
             if (validating && run==runs-1) {
-                if(cpuValidation(
-                    PlusConst<array_type>, input_array, constant, 
-                    output_array, array_len)
-                ){
+                if(cpuValidation<PlusX<array_type>>(
+                        input_array, constant, output_array, array_len
+                )){
                     std::cout << "  Result is correct\n";
                 } else {
                     std::cout << "  Result is incorrect. Skipping any "
@@ -279,10 +276,9 @@ int main(int argc, char** argv){
             // do this at the end as reading output array will shift it back to 
             // the host
             if (validating && run==runs-1) {
-                if(cpuValidation(
-                    PlusConst<array_type>, input_array, constant, 
-                    output_array, array_len)
-                ){
+                if(cpuValidation<PlusX<array_type>>(
+                    input_array, constant, output_array, array_len
+                )){
                     std::cout << "  Result is correct\n";
                 } else {
                     std::cout << "  Result is incorrect. Skipping any "
@@ -389,10 +385,9 @@ int main(int argc, char** argv){
             // do this at the end as reading output array will shift it back to 
             // the host
             if (validating && run==runs-1) {
-                if(cpuValidation(
-                    PlusConst<array_type>, input_array, constant, 
-                    output_array, array_len)
-                ){
+                if(cpuValidation<PlusX<array_type>>(
+                    input_array, constant, output_array, array_len
+                )){
                     std::cout << "  Result is correct\n";
                 } else {
                     std::cout << "  Result is incorrect. Skipping any "
