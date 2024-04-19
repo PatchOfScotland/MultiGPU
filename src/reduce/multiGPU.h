@@ -6,7 +6,9 @@
 template<typename Reduction>
 void commutative_per_device_management(
     typename Reduction::InputElement* input_array, 
-    typename Reduction::ReturnElement* accumulator, 
+    typename Reduction::ReturnElement* device_results,
+    typename Reduction::ReturnElement* device_accumulator,
+    typename Reduction::ReturnElement* global_accumulator, 
     const unsigned long int device_start, 
     const unsigned long int device_len, 
     const size_t dev_block_count, 
@@ -17,22 +19,13 @@ void commutative_per_device_management(
     typename Reduction::InputElement* sub_input_array = 
         input_array + device_start;
 
-    typename Reduction::ReturnElement* global_results;
-    CCC(cudaMallocManaged(&global_results, 
-        dev_block_count*sizeof(typename Reduction::ReturnElement))
-    );
-    typename Reduction::ReturnElement* device_accumulator;
-    CCC(cudaMallocManaged(&device_accumulator, 
-        sizeof(typename Reduction::ReturnElement))
-    );
-
     cudaEvent_t sync_event;
     CCC(cudaEventCreate(&sync_event));
 
     commutativeKernel<Reduction,typename Reduction::InputElement><<<
         dev_block_count, BLOCK_SIZE
     >>>(
-        sub_input_array, global_results, device_len, 
+        sub_input_array, device_results, device_len, 
         (dev_block_count*BLOCK_SIZE)
     );
     CCC(cudaEventRecord(sync_event));
@@ -41,16 +34,13 @@ void commutative_per_device_management(
     commutativeKernel<Reduction,typename Reduction::ReturnElement><<<
         1, BLOCK_SIZE
     >>>(
-        global_results, device_accumulator, dev_block_count, BLOCK_SIZE
+        device_results, device_accumulator, dev_block_count, BLOCK_SIZE
     );
 
     CCC(cudaEventRecord(sync_event));
     CCC(cudaEventSynchronize(sync_event));
 
-    *accumulator = *device_accumulator;
-
-    cudaFree(global_results);
-    cudaFree(device_accumulator);
+    *global_accumulator = *device_accumulator;
 }
 
 template<typename Reduction>
@@ -70,6 +60,8 @@ float commutativeMultiGpuReduction(
     size_t dev_block_count = (block_count + device_count - 1) / device_count;
 
     typename Reduction::ReturnElement accumulators[device_count];
+    typename Reduction::ReturnElement* all_device_results[device_count];
+    typename Reduction::ReturnElement* all_device_accumulators[device_count];
 
     unsigned long int per_device = array_len / device_count;
     int remainder = array_len % device_count;
@@ -79,6 +71,20 @@ float commutativeMultiGpuReduction(
 
     struct timeval cpu_start_time;
     struct timeval cpu_end_time;
+
+    for (int device=0; device<device_count; device++) { 
+        typename Reduction::ReturnElement* device_results;
+        CCC(cudaMallocManaged(&device_results, 
+            dev_block_count*sizeof(typename Reduction::ReturnElement))
+        );
+        all_device_results[device] = device_results;
+
+        typename Reduction::ReturnElement* device_accumulator;
+        CCC(cudaMallocManaged(&device_accumulator, 
+            sizeof(typename Reduction::ReturnElement))
+        );
+        all_device_accumulators[device] = device_accumulator;
+    }
 
     // Not sold on this metod of timing. cudaEvents would be better, but final 
     // reduction is done at cpu level
@@ -93,6 +99,7 @@ float commutativeMultiGpuReduction(
 
         threads[device] = std::thread(
             commutative_per_device_management<Reduction>, input_array, 
+            all_device_results[device], all_device_accumulators[device],
             &accumulators[device], device_start, device_len, 
             dev_block_count, device 
         );
@@ -109,6 +116,11 @@ float commutativeMultiGpuReduction(
     }
 
     gettimeofday(&cpu_end_time, NULL); 
+
+    for (int device=0; device<device_count; device++) { 
+        cudaFree(all_device_results[device]);
+        cudaFree(all_device_accumulators[device]);
+    }
 
     CCC(cudaSetDevice(origin_device));
 
