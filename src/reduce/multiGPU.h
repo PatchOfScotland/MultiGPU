@@ -47,7 +47,8 @@ template<typename Reduction>
 float commutativeMultiGpuReduction(
     typename Reduction::InputElement* input_array, 
     typename Reduction::ReturnElement* accumulator, 
-    const unsigned long int array_len
+    const unsigned long int array_len,
+    const bool use_hints
 ) {  
     int origin_device;
     CCC(cudaGetDevice(&origin_device));
@@ -68,6 +69,23 @@ float commutativeMultiGpuReduction(
     unsigned long int running_total = 0;
     unsigned long int device_start;
     unsigned long int device_len;
+
+    if (use_hints) {
+        for (int device=0; device<device_count; device++) {           
+            device_start = running_total;
+            device_len = (remainder > 0) ? per_device + 1 : per_device;
+            remainder -= 1;
+            running_total += device_len;
+
+            CCC(cudaMemAdvise(
+                input_array+device_start, 
+                device_len*sizeof(typename Reduction::InputElement), 
+                cudaMemAdviseSetPreferredLocation, 
+                device
+            ));
+        }
+        running_total = 0;
+    }
 
     struct timeval cpu_start_time;
     struct timeval cpu_end_time;
@@ -195,7 +213,8 @@ template<typename Reduction>
 float associativeMultiGpuReduction(
     typename Reduction::InputElement* input_array, 
     typename Reduction::ReturnElement* accumulator, 
-    const unsigned long int array_len
+    const unsigned long int array_len,
+    const bool use_hints
 ) {
     int origin_device;
     CCC(cudaGetDevice(&origin_device));
@@ -216,6 +235,23 @@ float associativeMultiGpuReduction(
     unsigned long int running_total = 0;
     unsigned long int device_start;
     unsigned long int device_len;
+
+    if (use_hints) {
+        for (int device=0; device<device_count; device++) {           
+            device_start = running_total;
+            device_len = (remainder > 0) ? per_device + 1 : per_device;
+            remainder -= 1;
+            running_total += device_len;
+
+            CCC(cudaMemAdvise(
+                input_array+device_start, 
+                device_len*sizeof(typename Reduction::InputElement), 
+                cudaMemAdviseSetPreferredLocation, 
+                device
+            ));
+        }
+        running_total = 0;
+    }
 
     struct timeval cpu_start_time;
     struct timeval cpu_end_time;
@@ -288,16 +324,18 @@ template<typename Reduction>
 float multiGpuReduction(
     typename Reduction::InputElement* input_array, 
     typename Reduction::ReturnElement* accumulator, 
-    const unsigned long int array_len
+    const unsigned long int array_len,
+    const bool use_hints=false
 ) {
+
     if (Reduction::commutative == true) {
         return commutativeMultiGpuReduction<Reduction>(
-            input_array, accumulator, array_len
+            input_array, accumulator, array_len, use_hints
         );
     }
     else {
         return associativeMultiGpuReduction<Reduction>(
-            input_array, accumulator, array_len
+            input_array, accumulator, array_len, use_hints
         );
     }
 }

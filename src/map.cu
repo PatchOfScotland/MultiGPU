@@ -309,39 +309,15 @@ int main(int argc, char** argv){
         int device_count;
         CCC(cudaGetDeviceCount(&device_count));
 
-        size_t block_count = (array_len + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        size_t dev_block_count = (block_count + device_count - 1) / device_count;
-
-        unsigned long int array_offset = 0;
-        unsigned long int block_range;
-
         if (standalone) {
             CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
             CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
             init_sparse_array(input_array, array_len, 10000);
         }
 
-        for (int device=0; device<device_count; device++) {
-            block_range = min(dev_block_count, array_len-array_offset);
-
-            CCC(cudaMemAdvise(
-                input_array+array_offset, 
-                block_range*sizeof(array_type), 
-                cudaMemAdviseSetPreferredLocation, 
-                device
-            ));
-            CCC(cudaMemAdvise(
-                output_array+array_offset, 
-                block_range*sizeof(array_type), 
-                cudaMemAdviseSetPreferredLocation, 
-                device
-            ));
-            array_offset = array_offset + block_range;
-        }
-
         std::cout << "  Running a warmup\n";
         multiGpuMapping<PlusX<array_type>>(
-            input_array, constant, output_array, array_len
+            input_array, constant, output_array, array_len, true
         );
 
         if (standalone) {
@@ -356,26 +332,8 @@ int main(int argc, char** argv){
                 init_sparse_array(input_array, array_len, 10000);
             }
 
-            for (int device=0; device<device_count; device++) {
-                block_range = min(dev_block_count, array_len-array_offset);
-
-                CCC(cudaMemAdvise(
-                    input_array+array_offset, 
-                    block_range*sizeof(array_type), 
-                    cudaMemAdviseSetPreferredLocation, 
-                    device
-                ));
-                CCC(cudaMemAdvise(
-                    output_array+array_offset, 
-                    block_range*sizeof(array_type), 
-                    cudaMemAdviseSetPreferredLocation, 
-                    device
-                ));
-                array_offset = array_offset + block_range;
-            }
-
             timing_ms[run] = multiGpuMapping<PlusX<array_type>>(
-                input_array, constant, output_array, array_len
+                input_array, constant, output_array, array_len, true
             );
 
             if (reduced_output == false) {

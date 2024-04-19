@@ -6,7 +6,8 @@ float multiGpuMapping(
     typename MappedFunction::InputElement* input_array, 
     typename MappedFunction::X x, 
     typename MappedFunction::ReturnElement* output_array, 
-    const unsigned long int array_len
+    const unsigned long int array_len,
+    const bool use_hints=false
 ) {  
     int origin_device;
     CCC(cudaGetDevice(&origin_device));
@@ -26,6 +27,29 @@ float multiGpuMapping(
         (cudaEvent_t*)malloc(device_count * sizeof(cudaEvent_t));
     cudaEvent_t* end_events = 
         (cudaEvent_t*)malloc(device_count * sizeof(cudaEvent_t));
+
+    if (use_hints) {
+        for (int device=0; device<device_count; device++) {
+            device_start = running_total;
+            device_len = (remainder > 0) ? per_device + 1 : per_device;
+            remainder -= 1;
+            running_total += device_len;
+
+            CCC(cudaMemAdvise(
+                input_array+device_start, 
+                device_len*sizeof(typename MappedFunction::InputElement), 
+                cudaMemAdviseSetPreferredLocation, 
+                device
+            ));
+            CCC(cudaMemAdvise(
+                output_array+device_start, 
+                device_len*sizeof(typename MappedFunction::ReturnElement), 
+                cudaMemAdviseSetPreferredLocation, 
+                device
+            ));
+        }
+        running_total = 0;
+    }
 
     setup_events(&start_events, origin_device, device_count);
     setup_events(&end_events, origin_device, device_count);

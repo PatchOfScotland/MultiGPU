@@ -298,28 +298,9 @@ int main(int argc, char** argv){
             init_sparse_array(input_array, array_len, 10000);
         }
 
-        unsigned long int per_device = array_len / device_count;
-        int remainder = array_len % device_count;
-        unsigned long int running_total = 0;
-        unsigned long int device_start;
-        unsigned long int this_block;
-        for (int device=0; device<device_count; device++) {           
-            device_start = running_total;
-            this_block = (remainder > 0) ? per_device + 1 : per_device;
-            remainder -= 1;
-            running_total += this_block;
-
-            CCC(cudaMemAdvise(
-                input_array+device_start, 
-                this_block*sizeof(array_type), 
-                cudaMemAdviseSetPreferredLocation, 
-                device
-            ));
-        }
-
         std::cout << "  Running a warmup\n";
         multiGpuReduction<Add<array_type,return_type>>(
-            input_array, output, array_len
+            input_array, output, array_len, true
         );
 
         if (standalone) {
@@ -334,23 +315,8 @@ int main(int argc, char** argv){
                 init_sparse_array(input_array, array_len, 10000);
             }
 
-            running_total = 0;
-            for (int device=0; device<device_count; device++) {           
-                device_start = running_total;
-                this_block = (remainder > 0) ? per_device + 1 : per_device;
-                remainder -= 1;
-                running_total += this_block;
-
-                CCC(cudaMemAdvise(
-                    input_array+device_start, 
-                    this_block*sizeof(array_type), 
-                    cudaMemAdviseSetPreferredLocation, 
-                    device
-                ));
-            }
-
             timing_ms[run] = multiGpuReduction<Add<array_type,return_type>>(
-                input_array, output, array_len
+                input_array, output, array_len, true
             );
 
             if (reduced_output == false) {
@@ -542,28 +508,9 @@ int main(int argc, char** argv){
             init_sparse_array(input_array, array_len, 10000);
         }
 
-        unsigned long int per_device = array_len / device_count;
-        int remainder = array_len % device_count;
-        unsigned long int running_total = 0;
-        unsigned long int device_start;
-        unsigned long int this_block;
-        for (int device=0; device<device_count; device++) {           
-            device_start = running_total;
-            this_block = (remainder > 0) ? per_device + 1 : per_device;
-            remainder -= 1;
-            running_total += this_block;
-
-            CCC(cudaMemAdvise(
-                input_array+device_start, 
-                this_block*sizeof(array_type), 
-                cudaMemAdviseSetPreferredLocation, 
-                device
-            ));
-        }
-
         std::cout << "  Running a warmup\n";
         multiGpuReduction<AddNonCommutative<array_type,return_type>>(
-            input_array, output, array_len
+            input_array, output, array_len, true
         );
 
         if (standalone) {
@@ -577,24 +524,9 @@ int main(int argc, char** argv){
                 CCC(cudaMallocManaged(&output, sizeof(return_type)));
                 init_sparse_array(input_array, array_len, 10000);
             }
-            
-            running_total = 0;
-            for (int device=0; device<device_count; device++) {           
-                device_start = running_total;
-                this_block = (remainder > 0) ? per_device + 1 : per_device;
-                remainder -= 1;
-                running_total += this_block;
-
-                CCC(cudaMemAdvise(
-                    input_array+device_start, 
-                    this_block*sizeof(array_type), 
-                    cudaMemAdviseSetPreferredLocation, 
-                    device
-                ));
-            }
 
             timing_ms[run] = multiGpuReduction<AddNonCommutative<array_type,return_type>>(
-                input_array, output, array_len
+                input_array, output, array_len, true
             );
 
             if (reduced_output == false) {
