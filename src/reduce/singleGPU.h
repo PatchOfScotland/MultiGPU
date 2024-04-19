@@ -78,8 +78,6 @@ float associativeSingleGpuReduction(
     CCC(cudaEventCreate(&start_event));
     cudaEvent_t end_event;
     CCC(cudaEventCreate(&end_event));
-    cudaEvent_t sync_event;
-    CCC(cudaEventCreate(&sync_event));
 
     CCC(cudaEventRecord(start_event));
     associativeKernelInitial<Reduction, CHUNK><<<
@@ -88,8 +86,8 @@ float associativeSingleGpuReduction(
         input_array, global_results, array_len, num_sequential_blocks
     );
 
-    CCC(cudaEventRecord(sync_event));
-    CCC(cudaEventSynchronize(sync_event));
+    CCC(cudaEventRecord(end_event));
+    CCC(cudaEventSynchronize(end_event));
 
     const uint32_t block_size = closestMul32(block_count);
     shared_memory_size = 
