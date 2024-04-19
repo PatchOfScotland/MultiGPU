@@ -44,7 +44,7 @@ template<class T>
 void print_array(T* timing_array, size_t array_len) {
     for (int i=0; i<array_len; i++) {
         if (i==0) {
-            printf(timing_array[i]);
+            std::cout << timing_array[i];
         }
         else if (i==array_len-1) {
             std::cout << ", " << timing_array[i] << "\n";
