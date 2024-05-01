@@ -8,8 +8,6 @@
 
 typedef float array_type;
 
-#define TILESIZE 2
-
 float get_throughput(float mean_ms, double data_gigabytes) {
     float mean_seconds = mean_ms * 1e-6f;
     return (float)data_gigabytes / mean_seconds;
@@ -21,7 +19,7 @@ float get_flops(float mean_ms, long int operations) {
     return (float)giga_operations / mean_seconds;
 }
 
-float print_timing_stats(float* timing_array, size_t array_len, long int operations, double data_gigabytes, float naive_runtime_ms, float tiled_runtime_ms, float tiled_openmp_runtime_ms) {
+float print_timing_stats(float* timing_array, size_t array_len, long int operations, double data_gigabytes, float naive_runtime_ms, float tiled_runtime_ms, float tiled_openmp_runtime_ms, float trans_naive_runtime_ms, float trans_tiled_ms, float trans_openmp_ms) {
     float mean_ms = 0;
     float min = timing_array[0];
     float max = timing_array[0];
@@ -44,7 +42,7 @@ float print_timing_stats(float* timing_array, size_t array_len, long int operati
     printf("    Min runtime:   %fms\n", min);
     printf("    Max runtime:   %fms\n", max);
     printf("    Mean runtime:  %fms\n", mean_ms);
-    printf("    Throughput:    %fGB/sec\n", gigabytes_per_second);
+    //printf("    Throughput:    %fGB/sec\n", gigabytes_per_second); // Meaningless in MMM
     printf("    GFLOPS/s:      %f/sec\n", gigaflops_per_second);
     
     if (naive_runtime_ms != -1) {
@@ -55,6 +53,15 @@ float print_timing_stats(float* timing_array, size_t array_len, long int operati
     }
     if (tiled_openmp_runtime_ms != -1) {
         printf("      Speedup vs tiled with openMP: x%f\n", tiled_openmp_runtime_ms / mean_ms);
+    }
+    if (trans_naive_runtime_ms != -1) {
+        printf("      Speedup vs trans naive:       x%f\n", trans_naive_runtime_ms / mean_ms);
+    }
+    if (trans_tiled_ms != -1) {
+        printf("      Speedup vs trans tiled:       x%f\n", trans_tiled_ms / mean_ms);
+    }
+    if (trans_openmp_ms != -1) {
+        printf("      Speedup vs trans openmp:      x%f\n", trans_openmp_ms / mean_ms);
     }
     return mean_ms;
 }
@@ -99,6 +106,15 @@ void zero_matrix(array_type* arr, unsigned int size) {
     }
 }
 
+void transpose_matrix(array_type* input, size_t width, size_t height, array_type* output) {
+    #pragma omp parallel for shared(input, output) collapse(2)
+    for (int w=0; w<width; w++) {
+        for (int h=0; h<height; h++) {
+            output[w*height + h] = input[h*width + w];
+        }
+    }
+}
+
 bool compare_arrays(array_type* array_1, array_type* array_2, size_t array_len){
 
     bool status = true;
@@ -111,6 +127,15 @@ bool compare_arrays(array_type* array_1, array_type* array_2, size_t array_len){
     return status;
 }
 
+int getIndex(bool isTrans, int i, int j, int heightX, int widthX) {
+    if(isTrans) {
+        return j*heightX + i; // A[j,i]
+    } else {
+        return i*widthX + j; // A[i,j]
+    }
+}
+
+template<bool transB>
 void runNaive(
     int height_A, int width_A, int width_B,
     array_type* matrix_A, array_type* matrix_B, array_type* matrix_C
@@ -120,8 +145,10 @@ void runNaive(
             array_type acc = 0;
             int c = i*width_B + j;
             for(int k = 0; k < width_A; ++k) {
-                int a = i*width_A + k;
-                int b = k*width_B + j;
+                //int a = i*width_A + k;
+                //int b = k*width_B + j;
+                int a = getIndex(false, i, k, height_A, width_A);
+                int b = getIndex(transB, k, j, width_A, width_B);
                 //printf("C[%d][%d] -> C[%d]\n", i, j, c);
                 //printf("A[%d][%d] -> A[%d]\n", i, k, a);
                 //printf("B[%d][%d] -> B[%d]\n", k, j, b);
@@ -133,23 +160,19 @@ void runNaive(
     }
 }
 
-template<int tileSize>
+template<bool transB>
 void runTiled( 
     int height_A, int width_A, int width_B,
-    array_type* matrix_A, array_type* matrix_B, array_type* matrix_C
+    array_type* matrix_A, array_type* matrix_B, array_type* matrix_C, 
+    int tileSize, int chunkSize
 ) {
-    for (int rowTile = 0; rowTile < height_A; rowTile += 256) {
-        
-        for (int columnTile = 0; columnTile < width_A; columnTile += 256) {
-
+    for (int rowTile = 0; rowTile < height_A; rowTile += chunkSize) {
+        for (int columnTile = 0; columnTile < width_A; columnTile += chunkSize) {
             for (int innerTile = 0; innerTile < width_B; innerTile += tileSize) {
-        
-                for (int row = rowTile; row < rowTile + 256; row++) {
+                for (int row = rowTile; row < rowTile + chunkSize; row++) {
                     int innerTileEnd = std::min(width_B, innerTile + tileSize);
-        
                     for (int inner = innerTile; inner < innerTileEnd; inner++) {
-        
-                        for (int col = columnTile; col < columnTile + 256; col++) {
+                        for (int col = columnTile; col < columnTile + chunkSize; col++) {
                             matrix_C[row* width_A + col] += matrix_A[row * width_B + inner] * matrix_B[inner * width_A + col];
                         }
                     }
@@ -159,24 +182,21 @@ void runTiled(
     } 
 }
 
-template<int tileSize>
+template<bool transB>
 void runTiledOpenMP( 
     int height_A, int width_A, int width_B,
-    array_type* matrix_A, array_type* matrix_B, array_type* matrix_C
+    array_type* matrix_A, array_type* matrix_B, array_type* matrix_C, 
+    int tileSize, int chunkSize
 ) {
     #pragma omp parallel for shared(matrix_C, matrix_A, matrix_B) collapse(2) num_threads(8)
-    for (int rowTile = 0; rowTile < height_A; rowTile += 256) {
-        
-        for (int columnTile = 0; columnTile < width_A; columnTile += 256) {
+    for (int rowTile = 0; rowTile < height_A; rowTile += chunkSize) {
+        for (int columnTile = 0; columnTile < width_A; columnTile += chunkSize) {
 
             for (int innerTile = 0; innerTile < width_B; innerTile += tileSize) {
-        
-                for (int row = rowTile; row < rowTile + 256; row++) {
+                for (int row = rowTile; row < rowTile + chunkSize; row++) {
                     int innerTileEnd = std::min(width_B, innerTile + tileSize);
-        
                     for (int inner = innerTile; inner < innerTileEnd; inner++) {
-        
-                        for (int col = columnTile; col < columnTile + 256; col++) {
+                        for (int col = columnTile; col < columnTile + chunkSize; col++) {
                             matrix_C[row * width_A + col] += matrix_A[row * width_B + inner] * matrix_B[inner * width_A + col];
                         }
                     }
@@ -204,6 +224,9 @@ int main(int argc, char** argv){
     bool skip = false;
     bool reduced_output = false;
 
+    const int tileSize = 16;
+    const int chunkSize = heightB / 4;
+
     for (int i=0; i<argc; i++) {
         if (strcmp(argv[i], "-v") == 0) {
             validating = true;
@@ -216,7 +239,7 @@ int main(int argc, char** argv){
         }
     }
 
-    double datasize = (( ((widthA*heightA)+(widthB*heightB)+(widthC*heightC))*sizeof(array_type))/1e9);
+    double datasize = (( ((widthA*heightA)+(2*widthB*heightB)+(2*widthC*heightC))*sizeof(array_type))/1e9);
 
     printf("Input arrays of %dx%d and %dx%d give output of %dx%d\n", widthA, heightA, widthB, heightB, widthC, heightC);
 
@@ -233,6 +256,7 @@ int main(int argc, char** argv){
 
     array_type* matrixA;
     array_type* matrixB;
+    array_type* matrixBTrans;
     array_type* matrixC;
     array_type* reference;
     struct timeval start_event;
@@ -241,22 +265,26 @@ int main(int argc, char** argv){
     float naive_time_ms = -1;
     float tiled_time_ms = -1;
     float openmp_time_ms = -1;
+    float trans_naive_ms = -1;
+    float trans_tiled_ms = -1;
+    float trans_openmp_ms = -1;
 
     matrixA = (array_type*)malloc(sizeof(array_type) * (heightA * widthA));
     matrixB = (array_type*)malloc(sizeof(array_type) * (heightB * widthB));
+    matrixBTrans = (array_type*)malloc(sizeof(array_type) * (heightB * widthB));
     matrixC = (array_type*)malloc(sizeof(array_type) * (heightB * widthB));
     reference = (array_type*)malloc(sizeof(array_type) * (heightC * widthC));
 
     float* timing_ms = (float*)calloc(runs, sizeof(float));
     long int operations = heightC * widthC * heightB * 2;
 
-    printf("Will be running %ld FLOPS per run\n", operations);
+    printf("Will be running %ld FLOPS per run, with tilesize: %d and chunkSize %d\n", operations, tileSize, chunkSize);
 
     printf("Initialising input arrays\n");
     if (skip == false) {
         init_matrix(matrixA, heightA * widthA);
         init_matrix(matrixB, heightB * widthB);
-        //zero_matrix(matrixC, heightC * widthC);
+        transpose_matrix(matrixB, widthB, heightB, matrixBTrans);
     }
 
     //printf("Input A:\n");
@@ -265,7 +293,7 @@ int main(int argc, char** argv){
     //print_array(matrixB, heightB, widthB);
 
     { // Get CPU baseline
-        printf("Getting CPU result\n");
+        printf("Getting validation result\n");
 
         struct timeval cpu_start_time;
         struct timeval cpu_end_time;
@@ -273,14 +301,14 @@ int main(int argc, char** argv){
         gettimeofday(&cpu_start_time, NULL);
 
         if (skip == false) {
-            runNaive(heightA, widthA, widthB, matrixA, matrixB, reference);
+            runNaive<false>(heightA, widthA, widthB, matrixA, matrixB, reference);
         }
         gettimeofday(&cpu_end_time, NULL); 
 
         runtime_microseconds = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
             - (cpu_start_time.tv_usec+(1e6*cpu_start_time.tv_sec));
-        printf("CPU reduction took: %fms\n", runtime_microseconds);
-        printf("CPU throughput:     %fGB/sec\n", (float)datasize / runtime_microseconds);
+        printf("generating validation took: %fms\n", runtime_microseconds);
+        printf("validation throughput:      %fGB/sec\n", (float)datasize / (runtime_microseconds * 1e-6f));
     }
 
     //printf("Refernce:\n");
@@ -288,23 +316,23 @@ int main(int argc, char** argv){
 
     { // Benchmark commutative single GPU
         printf("\nBenchmarking naive matrix multiplication *****************\n");
-
+    
         printf("  Running a warmup\n");
-        runNaive(heightA, widthA, widthB, matrixA, matrixB, matrixC);
-
+        runNaive<false>(heightA, widthA, widthB, matrixA, matrixB, matrixC);
+    
         for (int run=0; run<runs; run++) {
             if (reduced_output == false) {
                 print_loop_feedback(run, runs);
             }
-
+    
             //zero_matrix(matrixC, heightC * widthC);
             gettimeofday(&start_event, NULL);
-            runNaive(heightA, widthA, widthB, matrixA, matrixB, matrixC);
+            runNaive<false>(heightA, widthA, widthB, matrixA, matrixB, matrixC);
             gettimeofday(&end_event, NULL);
-
+    
             runtime_microseconds = (end_event.tv_usec+(1e6*end_event.tv_sec)) - (start_event.tv_usec+(1e6*start_event.tv_sec));
             timing_ms[run] = runtime_microseconds;
-
+    
             // do this at the end as reading output array will shift it back to 
             // the host
             if (validating && run==runs-1) {
@@ -317,33 +345,32 @@ int main(int argc, char** argv){
                 }
             }
         }
-
+    
          naive_time_ms = print_timing_stats(
             timing_ms, runs, operations, datasize, naive_time_ms, tiled_time_ms, 
-            openmp_time_ms
+            openmp_time_ms, trans_naive_ms, trans_tiled_ms, trans_openmp_ms
         );
     }
 
-
     { // Benchmark commutative single GPU
-        printf("\nBenchmarking tiled matrix multiplication ***************\n");
-
+        printf("\nBenchmarking naive transposed matrix multiplication *****\n");
+    
         printf("  Running a warmup\n");
-        runTiled<TILESIZE>(heightA, widthA, widthB, matrixA, matrixB, matrixC);
-
+        runNaive<true>(heightA, widthA, widthB, matrixA, matrixBTrans, matrixC);
+    
         for (int run=0; run<runs; run++) {
             if (reduced_output == false) {
                 print_loop_feedback(run, runs);
             }
-
-            zero_matrix(matrixC, heightC * widthC);
+    
+            //zero_matrix(matrixC, heightC * widthC);
             gettimeofday(&start_event, NULL);
-            runTiled<TILESIZE>(heightA, widthA, widthB, matrixA, matrixB, matrixC);
+            runNaive<true>(heightA, widthA, widthB, matrixA, matrixBTrans, matrixC);
             gettimeofday(&end_event, NULL);
-
+    
             runtime_microseconds = (end_event.tv_usec+(1e6*end_event.tv_sec)) - (start_event.tv_usec+(1e6*start_event.tv_sec));
             timing_ms[run] = runtime_microseconds;
-
+    
             // do this at the end as reading output array will shift it back to 
             // the host
             if (validating && run==runs-1) {
@@ -356,32 +383,108 @@ int main(int argc, char** argv){
                 }
             }
         }
-
-         openmp_time_ms = print_timing_stats(
+    
+         trans_naive_ms = print_timing_stats(
             timing_ms, runs, operations, datasize, naive_time_ms, tiled_time_ms, 
-            openmp_time_ms
+            openmp_time_ms, trans_naive_ms, trans_tiled_ms, trans_openmp_ms
+        );
+    }
+
+    { // Benchmark commutative single GPU
+        printf("\nBenchmarking tiled matrix multiplication ***************\n");
+    
+        printf("  Running a warmup\n");
+        runTiled<false>(heightA, widthA, widthB, matrixA, matrixB, matrixC, tileSize, chunkSize);
+    
+        for (int run=0; run<runs; run++) {
+            if (reduced_output == false) {
+                print_loop_feedback(run, runs);
+            }
+    
+            zero_matrix(matrixC, heightC * widthC);
+            gettimeofday(&start_event, NULL);
+            runTiled<false>(heightA, widthA, widthB, matrixA, matrixB, matrixC, tileSize, chunkSize);
+            gettimeofday(&end_event, NULL);
+    
+            runtime_microseconds = (end_event.tv_usec+(1e6*end_event.tv_sec)) - (start_event.tv_usec+(1e6*start_event.tv_sec));
+            timing_ms[run] = runtime_microseconds;
+    
+            // do this at the end as reading output array will shift it back to 
+            // the host
+            if (validating && run==runs-1) {
+                if(compare_arrays(reference, matrixC, widthC*heightC) == true
+                ){
+                    printf("  Result is correct\n");
+                } else {
+                    printf("  Result is incorrect. Skipping any subsequent runs\n");
+                    break;
+                }
+            }
+        }
+    
+        tiled_time_ms = print_timing_stats(
+            timing_ms, runs, operations, datasize, naive_time_ms, tiled_time_ms, 
+            openmp_time_ms, trans_naive_ms, trans_tiled_ms, trans_openmp_ms
+        );
+    }
+
+    { // Benchmark commutative single GPU
+        printf("\nBenchmarking tiled transpose matrix multiplication ******\n");
+    
+        printf("  Running a warmup\n");
+        runTiled<true>(heightA, widthA, widthB, matrixA, matrixBTrans, matrixC, tileSize, chunkSize);
+    
+        for (int run=0; run<runs; run++) {
+            if (reduced_output == false) {
+                print_loop_feedback(run, runs);
+            }
+    
+            zero_matrix(matrixC, heightC * widthC);
+            gettimeofday(&start_event, NULL);
+            runTiled<true>(heightA, widthA, widthB, matrixA, matrixBTrans, matrixC, tileSize, chunkSize);
+            gettimeofday(&end_event, NULL);
+    
+            runtime_microseconds = (end_event.tv_usec+(1e6*end_event.tv_sec)) - (start_event.tv_usec+(1e6*start_event.tv_sec));
+            timing_ms[run] = runtime_microseconds;
+    
+            // do this at the end as reading output array will shift it back to 
+            // the host
+            if (validating && run==runs-1) {
+                if(compare_arrays(reference, matrixC, widthC*heightC) == true
+                ){
+                    printf("  Result is correct\n");
+                } else {
+                    printf("  Result is incorrect. Skipping any subsequent runs\n");
+                    break;
+                }
+            }
+        }
+    
+        trans_tiled_ms = print_timing_stats(
+            timing_ms, runs, operations, datasize, naive_time_ms, tiled_time_ms, 
+            openmp_time_ms, trans_naive_ms, trans_tiled_ms, trans_openmp_ms
         );
     }
 
     { // Benchmark commutative single GPU
         printf("\nBenchmarking openmp tiled matrix multiplication *********\n");
-
+    
         printf("  Running a warmup\n");
-        runTiledOpenMP<TILESIZE>(heightA, widthA, widthB, matrixA, matrixB, matrixC);
-
+        runTiledOpenMP<false>(heightA, widthA, widthB, matrixA, matrixB, matrixC, tileSize, chunkSize);
+    
         for (int run=0; run<runs; run++) {
             if (reduced_output == false) {
                 print_loop_feedback(run, runs);
             }
-
+    
             zero_matrix(matrixC, heightC * widthC);
             gettimeofday(&start_event, NULL);
-            runTiledOpenMP<TILESIZE>(heightA, widthA, widthB, matrixA, matrixB, matrixC);
+            runTiledOpenMP<false>(heightA, widthA, widthB, matrixA, matrixB, matrixC, tileSize, chunkSize);
             gettimeofday(&end_event, NULL);
-
+    
             runtime_microseconds = (end_event.tv_usec+(1e6*end_event.tv_sec)) - (start_event.tv_usec+(1e6*start_event.tv_sec));
             timing_ms[run] = runtime_microseconds;
-
+    
             // do this at the end as reading output array will shift it back to 
             // the host
             if (validating && run==runs-1) {
@@ -394,10 +497,48 @@ int main(int argc, char** argv){
                 }
             }
         }
-
+    
          openmp_time_ms = print_timing_stats(
             timing_ms, runs, operations, datasize, naive_time_ms, tiled_time_ms, 
-            openmp_time_ms
+            openmp_time_ms, trans_naive_ms, trans_tiled_ms, trans_openmp_ms
+        );
+    }
+
+    { // Benchmark commutative single GPU
+        printf("\nBenchmarking transpose openmp tiled matrix multiplication *\n");
+    
+        printf("  Running a warmup\n");
+        runTiledOpenMP<true>(heightA, widthA, widthB, matrixA, matrixBTrans, matrixC, tileSize, chunkSize);
+    
+        for (int run=0; run<runs; run++) {
+            if (reduced_output == false) {
+                print_loop_feedback(run, runs);
+            }
+    
+            zero_matrix(matrixC, heightC * widthC);
+            gettimeofday(&start_event, NULL);
+            runTiledOpenMP<true>(heightA, widthA, widthB, matrixA, matrixBTrans, matrixC, tileSize, chunkSize);
+            gettimeofday(&end_event, NULL);
+    
+            runtime_microseconds = (end_event.tv_usec+(1e6*end_event.tv_sec)) - (start_event.tv_usec+(1e6*start_event.tv_sec));
+            timing_ms[run] = runtime_microseconds;
+    
+            // do this at the end as reading output array will shift it back to 
+            // the host
+            if (validating && run==runs-1) {
+                if(compare_arrays(reference, matrixC, widthC*heightC) == true
+                ){
+                    printf("  Result is correct\n");
+                } else {
+                    printf("  Result is incorrect. Skipping any subsequent runs\n");
+                    break;
+                }
+            }
+        }
+    
+        trans_openmp_ms = print_timing_stats(
+            timing_ms, runs, operations, datasize, naive_time_ms, tiled_time_ms, 
+            openmp_time_ms, trans_naive_ms, trans_tiled_ms, trans_openmp_ms
         );
     }
 
