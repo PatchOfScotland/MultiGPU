@@ -126,3 +126,6 @@ bool in_range(T num1, T num2, T tolerance) {
 }
 
 #endif
+
+2147483648
+24696061952

@@ -1,5 +1,5 @@
 FLAGS=-Xcompiler -fopenmp -O3
-PROGRAMS=map reduce
+PROGRAMS=map reduce tiled_scan
 
 all: $(PROGRAMS)
 
@@ -10,6 +10,10 @@ map:
 reduce: 
 	mkdir -p build
 	nvcc src/reduce.cu -o $^ build/reduce $(FLAGS)
+
+tiled_scan:
+	mkdir -p build
+	g++ src/tiled_scan.cpp -o $^ build/tiled_scan -fopenmp -O3
 
 map_bench:
 	make map
