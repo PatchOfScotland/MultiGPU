@@ -33,13 +33,13 @@ template<typename MappedFunction>
 bool cpuValidation(
     typename MappedFunction::InputElement* input_array, 
     const typename MappedFunction::X constant, 
-    typename MappedFunction::ReturnElement* output_array, 
+    typename MappedFunction::ReturnElement* validating, 
     const unsigned long int array_len
 ) {
     unsigned long int count = 0;
     #pragma omp parallel for
     for (unsigned long int i=0; i<array_len; i++) {
-        if (MappedFunction::apply(input_array[i], constant) != output_array[i]
+        if (MappedFunction::apply(input_array[i], constant) != validating[i]
         ) {
             count++;
         }

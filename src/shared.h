@@ -73,8 +73,14 @@ void print_matrix(T* matrix, size_t width, size_t height) {
 }
 
 float get_throughput(float mean_ms, double data_gigabytes) {
-    float mean_seconds = mean_ms * 1e-3f;
+    float mean_seconds = mean_ms * 1e-6f;
     return (float)data_gigabytes / mean_seconds;
+}
+
+float get_flops(float mean_ms, long int operations) {
+    float mean_seconds = mean_ms * 1e-6f;
+    float giga_operations = operations /1e9f;
+    return (float)giga_operations / mean_seconds;
 }
 
 float print_timing_stats(

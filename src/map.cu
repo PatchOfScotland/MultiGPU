@@ -160,7 +160,7 @@ int main(int argc, char** argv){
             }
         }
 
-         single_gpu_time_ms = print_timing_stats(
+        single_gpu_time_ms = print_timing_stats(
             timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms, 
             multi_gpu_time_ms
         );

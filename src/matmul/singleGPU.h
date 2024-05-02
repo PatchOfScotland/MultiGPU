@@ -17,19 +17,29 @@
  *   where width_B is actually height_B
  */ 
 template<int isTA, int isTB, typename T, int TL>
-cudaError_t singleGpuMatMul(int height_A, int width_A, int height_B,
-                T* array_A, T* array_B, T* result
+float singleGpuMatMul(
+    T* array_A, unsigned int width_A, unsigned int height_A, 
+    T* array_B, unsigned int width_B, unsigned int height_B, 
+    T* result
 ) {  
     // setup execution parameters
-    int  dim_y = (height_A + TL - 1) / TL; 
-    int  dim_x = (height_B + TL - 1) / TL;
+    unsigned int dim_y = (height_A + TL - 1) / TL; 
+    unsigned int dim_x = (height_B + TL - 1) / TL;
 
     dim3 block(TL, TL, 1);
     dim3 grid(dim_x, dim_y, 1);
     
+    cudaEvent_t start_event;
+    CCC(cudaEventCreate(&start_event));
+    cudaEvent_t end_event;
+    CCC(cudaEventCreate(&end_event));
+
+    CCC(cudaEventRecord(start_event));
     mmmNaiveKernel<isTA, isTB, T> <<< grid, block >>>(
         array_A, array_B, result, height_A, height_B, width_A
     );
+    CCC(cudaEventRecord(end_event));
+    CCC(cudaEventSynchronize(end_event));
 
-    return cudaGetLastError();
+    return get_runtime(start_event, end_event);
 }
