@@ -1,10 +1,21 @@
 #include <stdio.h>
+#include "kernels.cu.h"
+
+
+
+int getIndex(bool isTrans, int i, int j, int heightX, int widthX) {
+    if(isTrans) {
+        return j*heightX + i; // A[j,i]
+    } else {
+        return i*widthX + j; // A[i,j]
+    }
+}
 
 template<typename T>
 float cpuMatMul(
-    T* input_A, unsigned int width_A, unsigned int height_A, 
-    T* input_B, unsigned int width_B, unsigned int height_B, 
-    T* result
+    T* matrixA, unsigned int widthA, unsigned int heightA, 
+    T* matrixB, unsigned int widthB, unsigned int heightB, 
+    T* matrixC
 ) {
     struct timeval cpu_start_time;
     struct timeval cpu_end_time;
@@ -12,24 +23,26 @@ float cpuMatMul(
     gettimeofday(&cpu_start_time, NULL); 
 
     // Performs matrix multiplication
-    for (unsigned int x= 0; x < width_A; x++) {
-        for (unsigned int y = 0; y < height_B; y++) {
-            unsigned int index_xy = (x*height_B) + y;
-            result[index_xy] = 0;
-            for (unsigned int z = 0; z < width_B; z++) {
-                unsigned int index_xz = (x*width_B) + z;
-                unsigned int index_zy = (z*width_A) + y;
-                result[index_xy] += input_A[index_xz] * input_B[index_zy];
+    #pragma omp parallel for shared(matrixC, matrixA, matrixB) collapse(2)
+    for(int i = 0; i < heightA; ++i) {
+        for(int j = 0; j < widthB; ++j) {
+            T acc = 0;
+            int c = i*widthB + j;
+            for(int k = 0; k < widthA; ++k) {
+                int a = getIndex(false, i, k, heightA, widthA);
+                int b = getIndex(false, k, j, widthA, widthB);
+                acc += matrixA[a] * matrixB[b];
             }
+            matrixC[c] = acc;
         }
     }
 
     gettimeofday(&cpu_end_time, NULL); 
 
-    float time_ms = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
+    float time_microseconds = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
             - (cpu_start_time.tv_usec+(1e6*cpu_start_time.tv_sec));
     
-    return time_ms;
+    return time_microseconds * 1e3;
 }
 
 // Checking function, does not generate any data, but takes an input and 
@@ -37,22 +50,23 @@ float cpuMatMul(
 // GPU validation.
 template<typename T>
 bool cpuValidation(
-    T* input_A, unsigned int width_A, unsigned int height_A, 
-    T* input_B, unsigned int width_B, unsigned int height_B, 
+    T* matrixA, unsigned int widthA, unsigned int heightA, 
+    T* matrixB, unsigned int widthB, unsigned int heightB, 
     T* validating, T tolerance
 ) {
     unsigned long int count = 0;
-    for (unsigned int x= 0; x < width_A; x++) {
-        for (unsigned int y = 0; y < height_B; y++) {
-            unsigned int index_xy = (x*height_B) + y;
-            T result = 0;
-            for (unsigned int z = 0; z < width_B; z++) {
-                unsigned int index_xz = (x*width_B) + z;
-                unsigned int index_zy = (z*width_A) + y;
-                result += input_A[index_xz] * input_B[index_zy];
+    #pragma omp parallel for collapse(2) reduction(+:count)
+    for(int i = 0; i < heightA; ++i) {
+        for(int j = 0; j < widthB; ++j) {
+            T matrixC = 0;
+            int c = i*widthB + j;
+            for(int k = 0; k < widthA; ++k) {
+                int a = getIndex(false, i, k, heightA, widthA);
+                int b = getIndex(false, k, j, widthA, widthB);
+                matrixC += matrixA[a] * matrixB[b];
             }
-            if (abs(result - validating[index_xy]) > tolerance) {
-                printf("%f does not match %f at [%d][%d]\n", result, validating[index_xy], (x*height_B), y);
+            if (abs(matrixC - validating[c]) > tolerance) {
+                //printf("%f does not match %f at [%d][%d] with tolerance: %f\n", matrixC, validating[c], i, j, tolerance);
                 count++;
             }
         }
@@ -61,5 +75,6 @@ bool cpuValidation(
     if (count == 0) {
         return true;
     }
+    printf("Got %d of potential %d mismatches\n", count, heightA*widthB);
     return false;
 }

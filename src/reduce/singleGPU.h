@@ -47,7 +47,9 @@ float commutativeSingleGpuReduction(
 
     cudaFree(global_results);
 
-    return get_runtime(start_event, end_event);
+    float runtime_milliseconds =  get_runtime(start_event, end_event);
+
+    return runtime_milliseconds * 1e3;
 }
 
 template<typename Reduction>
@@ -103,7 +105,9 @@ float associativeSingleGpuReduction(
 
     cudaFree(global_results);
 
-    return get_runtime(start_event, end_event);
+    float runtime_milliseconds =  get_runtime(start_event, end_event);
+
+    return runtime_milliseconds * 1e3;
 }
 
 template<typename Reduction>

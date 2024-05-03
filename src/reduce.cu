@@ -98,11 +98,12 @@ int main(int argc, char** argv){
         }
     }
 
-    double datasize = ((array_len*sizeof(array_type))/1e9);
+    unsigned long int datasize_bytes = (unsigned long int)((array_len*2*sizeof(array_type)));
+    unsigned long int operations = (unsigned long int)array_len;
     std::cout << "Running array of length " 
               << array_len 
               << " (" 
-              << datasize 
+              << datasize_bytes / 1e9 
               <<"GB)\n";
     if (validating) {
         std::cout << "Will validate output\n";
@@ -118,9 +119,23 @@ int main(int argc, char** argv){
     return_type* output;
     return_type validation_result;
 
-    float cpu_time_ms = -1;
-    float single_gpu_time_ms = -1;
-    float multi_gpu_time_ms = -1;
+    struct timing_stat cpu_time = timing_stat("CPU", operations, datasize_bytes);
+    struct timing_stat commutative_single_gpu_time = timing_stat("commutative single GPU", operations, datasize_bytes);
+    struct timing_stat commutative_multi_gpu_time = timing_stat("commutative multi GPU", operations, datasize_bytes);
+    struct timing_stat commutative_hint_gpu_time = timing_stat("commutative multi GPU with hints", operations, datasize_bytes);
+    struct timing_stat associative_single_gpu_time = timing_stat("associative single GPU", operations, datasize_bytes);
+    struct timing_stat associative_multi_gpu_time = timing_stat("associative multi GPU", operations, datasize_bytes);
+    struct timing_stat associative_hint_gpu_time = timing_stat("associative multi GPU with hints", operations, datasize_bytes);
+    const struct timing_stat* all_timings[] = {
+        &cpu_time,
+        &commutative_single_gpu_time,
+        &commutative_multi_gpu_time,
+        &commutative_hint_gpu_time,
+        &associative_single_gpu_time,
+        &associative_multi_gpu_time,
+        &associative_hint_gpu_time
+    };
+    int timings = sizeof(all_timings)/sizeof(all_timings[0]);
 
     CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
     CCC(cudaMallocManaged(&output, sizeof(return_type)));
@@ -138,7 +153,7 @@ int main(int argc, char** argv){
     { // Get CPU baseline
         std::cout << "Getting CPU result\n";
 
-        cpu_time_ms = cpuReduction<Add<array_type,return_type>>(
+        cpu_time.timing_microseconds = cpuReduction<Add<array_type,return_type>>(
             input_array, &validation_result, array_len
         );
 
@@ -147,8 +162,8 @@ int main(int argc, char** argv){
             CCC(cudaFree(output));
         }
 
-        std::cout << "CPU reduction took: " << cpu_time_ms << "ms\n";
-        std::cout << "CPU throughput:     " << (float)datasize / cpu_time_ms << "GB/sec\n";
+        std::cout << "CPU reduction took: " << cpu_time.timing_microseconds / 1e3 << "ms\n";
+        std::cout << "CPU throughput:     " << cpu_time.throughput_gb() << "GB/sec\n";
     }
 
     { // Benchmark commutative single GPU
@@ -215,9 +230,8 @@ int main(int argc, char** argv){
             }
         }
 
-         single_gpu_time_ms = print_timing_stats(
-            timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms, 
-            multi_gpu_time_ms
+        update_and_print_timing_stats(
+            timing_ms, runs, &commutative_single_gpu_time, all_timings, timings
         );
     }
 
@@ -283,9 +297,8 @@ int main(int argc, char** argv){
             }
         }
 
-         multi_gpu_time_ms = print_timing_stats(
-            timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms, 
-            multi_gpu_time_ms
+        update_and_print_timing_stats(
+            timing_ms, runs, &commutative_multi_gpu_time, all_timings, timings
         );
     }
 
@@ -352,14 +365,10 @@ int main(int argc, char** argv){
             }
         }
 
-         multi_gpu_time_ms = print_timing_stats(
-            timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms, 
-            multi_gpu_time_ms
+        update_and_print_timing_stats(
+            timing_ms, runs, &commutative_hint_gpu_time, all_timings, timings
         );
     }
-
-    single_gpu_time_ms = -1;
-    multi_gpu_time_ms = -1;
 
     { // Benchmark associative single GPU
         std::cout << "\nBenchmarking associative single GPU reduce ****\n";
@@ -425,9 +434,8 @@ int main(int argc, char** argv){
             }
         }
 
-         single_gpu_time_ms = print_timing_stats(
-            timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms, 
-            multi_gpu_time_ms
+        update_and_print_timing_stats(
+            timing_ms, runs, &associative_single_gpu_time, all_timings, timings
         );
     }
 
@@ -493,9 +501,8 @@ int main(int argc, char** argv){
             }
         }
 
-         multi_gpu_time_ms = print_timing_stats(
-            timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms, 
-            multi_gpu_time_ms
+        update_and_print_timing_stats(
+            timing_ms, runs, &associative_multi_gpu_time, all_timings, timings
         );
     }
 
@@ -561,9 +568,8 @@ int main(int argc, char** argv){
             }
         }
 
-         multi_gpu_time_ms = print_timing_stats(
-            timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms, 
-            multi_gpu_time_ms
+        update_and_print_timing_stats(
+            timing_ms, runs, &associative_hint_gpu_time, all_timings, timings
         );
     }
 

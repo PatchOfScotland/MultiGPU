@@ -52,11 +52,12 @@ int main(int argc, char** argv){
         }
     }
 
-    double datasize = ((array_len*2*sizeof(array_type))/1e9);
+    unsigned long int datasize_bytes = (unsigned long int)((array_len*2*sizeof(array_type)));
+    unsigned long int operations = (unsigned long int)array_len;
     std::cout << "Running array of length " 
               << array_len 
               << " (" 
-              << datasize 
+              << datasize_bytes /1e9
               <<"GB)\n";
     if (validating) {
         std::cout << "Will validate output\n";
@@ -77,9 +78,19 @@ int main(int argc, char** argv){
     array_type* output_array;
     array_type constant = 0.1;
 
-    float cpu_time_ms = -1;
-    float single_gpu_time_ms = -1;
-    float multi_gpu_time_ms = -1;
+    struct timing_stat cpu_time = timing_stat("CPU", operations, datasize_bytes);
+    struct timing_stat single_gpu_time = timing_stat("single GPU", operations, datasize_bytes);
+    struct timing_stat multi_gpu_time = timing_stat("multi GPU", operations, datasize_bytes);
+    struct timing_stat stream_gpu_time = timing_stat("multi GPU with streams", operations, datasize_bytes);
+    struct timing_stat hint_gpu_time = timing_stat("multi GPU with hints", operations, datasize_bytes);
+    const struct timing_stat* all_timings[] = {
+        &cpu_time,
+        &single_gpu_time,
+        &multi_gpu_time,
+        &stream_gpu_time,
+        &hint_gpu_time
+    };
+    int timings = sizeof(all_timings)/sizeof(all_timings[0]);
 
     CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
     CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
@@ -93,7 +104,7 @@ int main(int argc, char** argv){
     { // Get CPU baseline
         std::cout << "Getting CPU baseline\n";
 
-        cpu_time_ms = cpuMapping<PlusX<array_type>>(
+        cpu_time.timing_microseconds = cpuMapping<PlusX<array_type>>(
             input_array, constant, output_array, array_len
         );    
 
@@ -102,7 +113,7 @@ int main(int argc, char** argv){
             CCC(cudaFree(output_array));
         }
 
-        std::cout << "CPU mapping took: " << cpu_time_ms << "ms\n";
+        std::cout << "CPU mapping took: " << cpu_time.timing_microseconds / 1e3 << "ms\n";
     }
 
     { // Benchmark a single GPU
@@ -160,9 +171,8 @@ int main(int argc, char** argv){
             }
         }
 
-        single_gpu_time_ms = print_timing_stats(
-            timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms, 
-            multi_gpu_time_ms
+        update_and_print_timing_stats(
+            timing_ms, runs, &single_gpu_time, all_timings, timings
         );
     }
 
@@ -221,9 +231,8 @@ int main(int argc, char** argv){
             }
         }
 
-        multi_gpu_time_ms = print_timing_stats(
-            timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms, 
-            multi_gpu_time_ms
+        update_and_print_timing_stats(
+            timing_ms, runs, &multi_gpu_time, all_timings, timings
         );
     }
 
@@ -293,9 +302,8 @@ int main(int argc, char** argv){
             }
         }
 
-        print_timing_stats(
-            timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms,
-            multi_gpu_time_ms
+        update_and_print_timing_stats(
+            timing_ms, runs, &stream_gpu_time, all_timings, timings
         );
 
         free(streams);
@@ -360,9 +368,8 @@ int main(int argc, char** argv){
             }
         }
 
-        print_timing_stats(
-            timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms,
-            multi_gpu_time_ms
+        update_and_print_timing_stats(
+            timing_ms, runs, &hint_gpu_time, all_timings, timings
         );
     }
 

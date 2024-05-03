@@ -21,5 +21,7 @@ float singleGpuMapping(
     CCC(cudaEventRecord(end_event));
     CCC(cudaEventSynchronize(end_event));
 
-    return get_runtime(start_event, end_event);
+    float runtime_milliseconds = get_runtime(start_event, end_event);
+    
+    return runtime_milliseconds * 1e3;
 }

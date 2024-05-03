@@ -79,12 +79,12 @@ float multiGpuMapping(
         CCC(cudaEventSynchronize(end_events[device]));
     }  
 
-    float runtime = get_mean_runtime(device_count, &start_events, &end_events);
+    float runtime_milliseconds = get_mean_runtime(device_count, &start_events, &end_events);
 
     free(start_events);
     free(end_events);
 
     CCC(cudaSetDevice(origin_device));
 
-    return runtime;
+    return runtime_milliseconds * 1e3;
 }

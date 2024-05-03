@@ -20,10 +20,10 @@ float cpuMapping(
 
     gettimeofday(&cpu_end_time, NULL); 
 
-    float time_ms = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
+    float time_microseconds = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
             - (cpu_start_time.tv_usec+(1e6*cpu_start_time.tv_sec));
     
-    return time_ms;
+    return time_microseconds;
 }
 
 // Checking function, does not generate any data, but takes an input and 

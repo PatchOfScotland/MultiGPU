@@ -1,11 +1,12 @@
 #include <sys/time.h>
+#include <limits>
 
 #include "matmul/cpu.h"
 #include "matmul/singleGPU.h"
 #include "shared_cuda.cu.h"
 #include "shared.h"
 
-typedef float array_type;
+typedef double array_type;
 
 int main(int argc, char** argv){
     if (argc < 5)
@@ -16,10 +17,12 @@ int main(int argc, char** argv){
         exit(EXIT_FAILURE);
     } 
 
-    unsigned int height_A = strtoul(argv[1], NULL, 0);
-    unsigned int width_A = strtoul(argv[2], NULL, 0);
-    unsigned int width_B = strtoul(argv[3], NULL, 0);
-    unsigned int height_B = width_A;
+    unsigned int heightA = strtoul(argv[1], NULL, 0);
+    unsigned int widthA = strtoul(argv[2], NULL, 0);
+    unsigned int widthB = strtoul(argv[3], NULL, 0);
+    unsigned int heightB = widthA;
+    unsigned int widthC = widthB;
+    unsigned int heightC = heightA;
     unsigned int runs = atoi(argv[4]);
     bool validating = false;
     bool standalone = false;
@@ -37,26 +40,31 @@ int main(int argc, char** argv){
         }
     }
 
-    unsigned long int size_A = height_A * width_A;
-    unsigned long int size_B = height_B * width_B;
-    unsigned long int size_result = width_A * height_B;
+    unsigned long int sizeA = widthA * heightA;
+    unsigned long int sizeB = widthB * heightB;
+    unsigned long int sizeC = widthC * heightC;
 
-    double datasize = ((size_A + size_B + size_result)*sizeof(array_type)/1e9);
+    unsigned long int datasize_bytes = (unsigned long int)((((widthA*heightA)+(2*widthB*heightB)+(2*widthC*heightC))*sizeof(array_type)));
+    unsigned long int operations = (unsigned long int)heightC * widthC * widthA * 2;
     std::cout << "Multiplying arrays of size " 
-              << height_A
+              << widthA
               << "x"
-              << width_A
+              << heightA
               << " and "
-              << height_B
+              << widthB
               << "x"
-              << width_B
+              << heightB
               << ", resulting in "
-              << width_A
+              << widthC
               << "x"
-              << height_B
-              << " (" 
-              << datasize 
-              <<"GB)\n";
+              << heightC
+              << "\n";
+    std::cout << "Using " 
+              << datasize_bytes / 1e9
+              << "GB of memory and "
+              << (float)operations / 1e9
+              << " GFLOPs per experiment\n";
+
     if (validating) {
         std::cout << "Will validate output\n";
     }
@@ -67,19 +75,25 @@ int main(int argc, char** argv){
         std::cout << "Creating new datasets for each run\n";
     }
 
-    array_type* input_array_A;
-    array_type* input_array_B;
-    array_type* result_array;
+    array_type* matrixA;
+    array_type* matrixB;
+    array_type* matrixC;
     
-    float cpu_time_ms = -1;
-    float single_gpu_time_ms = -1;
-    float multi_gpu_time_ms = -1;
+    struct timing_stat cpu_time = timing_stat("CPU", operations, datasize_bytes);
+    struct timing_stat single_gpu_time = timing_stat("single GPU", operations, datasize_bytes);
+    struct timing_stat recursive_single_gpu_time = timing_stat("recursive single GPU", operations, datasize_bytes);
+    const struct timing_stat* all_timings[] = {
+        &cpu_time,
+        &single_gpu_time,
+        &recursive_single_gpu_time
+    };
+    int timings = sizeof(all_timings)/sizeof(all_timings[0]);
 
-    CCC(cudaMallocManaged(&input_array_A, size_A*sizeof(array_type)));
-    CCC(cudaMallocManaged(&input_array_B, size_B*sizeof(array_type)));
-    CCC(cudaMallocManaged(&result_array, size_result*sizeof(array_type)));
-    init_matrix<array_type>(input_array_A, size_A);
-    init_matrix<array_type>(input_array_B, size_B);
+    CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
+    CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
+    CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
+    init_matrix<array_type>(matrixA, sizeA);
+    init_matrix<array_type>(matrixB, sizeB);
 
     float* timing_ms = (float*)calloc(runs, sizeof(float));
 
@@ -93,28 +107,29 @@ int main(int argc, char** argv){
     { // Get CPU baseline
         std::cout << "Getting CPU result\n";
 
-        std::cout << "Input A: \n";
-        print_matrix(input_array_A, height_A, width_A);
-        std::cout << "Input B: \n";
-        print_matrix(input_array_B, height_B, width_B);
+        //std::cout << "Input A: \n";
+        //print_matrix(matrixA, widthA, heightA);
+        //std::cout << "Input B: \n";
+        //print_matrix(matrixB, widthB, heightB);
 
-        cpu_time_ms = cpuMatMul<array_type>(
-            input_array_A, width_A, height_A, 
-            input_array_B, width_B, height_B, 
-            result_array
+        cpu_time.timing_microseconds = cpuMatMul<array_type>(
+            matrixA, widthA, heightA, 
+            matrixB, widthB, heightB, 
+            matrixC
         );
 
-        std::cout << "Result: \n";
-        print_matrix(result_array, height_B, width_A);
+        //std::cout << "Result: \n";
+        //print_matrix(matrixC, widthC, heightC);
 
         if (standalone) {
-            CCC(cudaFree(input_array_A));
-            CCC(cudaFree(input_array_B));
-            CCC(cudaFree(result_array));
+            CCC(cudaFree(matrixA));
+            CCC(cudaFree(matrixB));
+            CCC(cudaFree(matrixC));
         }
 
-        std::cout << "CPU matrix multiplication took: " << cpu_time_ms << "ms\n";
-        std::cout << "CPU throughput:     " << (float)datasize / cpu_time_ms << "GB/sec\n";
+        std::cout << "CPU matrix multiplication took: " << cpu_time.timing_microseconds / 1e3 << "ms\n";
+        std::cout << "CPU throughput:     " << cpu_time.throughput_gb() << "GB/sec\n";
+        std::cout << "CPU GFLOPS:         " << cpu_time.throughput_gf() << "ops/sec\n";
     }
 
     { // Benchmark a single GPU
@@ -123,59 +138,59 @@ int main(int argc, char** argv){
         std::cout << "  Running a warmup\n";
 
         if (standalone) {
-            CCC(cudaMallocManaged(&input_array_A, size_A*sizeof(array_type)));
-            CCC(cudaMallocManaged(&input_array_B, size_B*sizeof(array_type)));
-            CCC(cudaMallocManaged(&result_array, size_result*sizeof(array_type)));
-            init_matrix<array_type>(input_array_A, size_A);
-            init_matrix<array_type>(input_array_B, size_B);
+            CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
+            CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
+            CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
+            init_matrix<array_type>(matrixA, sizeA);
+            init_matrix<array_type>(matrixB, sizeB);
         }
 
-        singleGpuMatMul<0, 1, array_type, 16>(
-            input_array_A, width_A, height_A, 
-            input_array_B, width_B, height_B, 
-            result_array
+        singleGpuMatMul<false, false, array_type, 16>(
+            matrixA, widthA, heightA, 
+            matrixB, widthB, heightB, 
+            matrixC
         );
 
         if (standalone) {
-            CCC(cudaFree(input_array_A));
-            CCC(cudaFree(input_array_B));
-            CCC(cudaFree(result_array));
+            CCC(cudaFree(matrixA));
+            CCC(cudaFree(matrixB));
+            CCC(cudaFree(matrixC));
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                CCC(cudaMallocManaged(&input_array_A, size_A*sizeof(array_type)));
-                CCC(cudaMallocManaged(&input_array_B, size_B*sizeof(array_type)));
-                CCC(cudaMallocManaged(&result_array, size_result*sizeof(array_type)));
-                init_matrix<array_type>(input_array_A, size_A);
-                init_matrix<array_type>(input_array_B, size_B);
+                CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
+                CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
+                CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
+                init_matrix<array_type>(matrixA, sizeA);
+                init_matrix<array_type>(matrixB, sizeB);
             }
 
-            std::cout << "Input A: \n";
-            print_matrix(input_array_A, height_A, width_A);
-            std::cout << "Input B: \n";
-            print_matrix(input_array_B, height_B, width_B);
+            //std::cout << "Input A: \n";
+            //print_matrix(matrixA, widthA, heightA);
+            //std::cout << "Input B: \n";
+            //print_matrix(matrixB, widthB, heightB);
 
-            timing_ms[run] = singleGpuMatMul<0, 1, array_type, 16>(
-                input_array_A, width_A, height_A, 
-                input_array_B, width_B, height_B, 
-                result_array
+            timing_ms[run] = singleGpuMatMul<false, false, array_type, 16>(
+                matrixA, widthA, heightA, 
+                matrixB, widthB, heightB, 
+                matrixC
             );
 
-            std::cout << "Result: \n";
-            print_matrix(result_array, height_B, width_A);
+            //std::cout << "Result: \n";
+            //print_matrix(matrixC, widthC, heightC);
 
             if (reduced_output == false) {
                 print_loop_feedback(run, runs);
             }
 
             // do this at the end as reading output array will shift it back to 
-            // the host. Just use datasize as crude tolerance for now.
+            // the host. Just use datasize_GB as crude tolerance for now.
             if (validating && run==runs-1) {
                 if(cpuValidation<array_type>(
-                    input_array_A, width_A, height_A, 
-                    input_array_B, width_B, height_B, 
-                    result_array, datasize
+                    matrixA, widthA, heightA, 
+                    matrixB, widthB, heightB, 
+                    matrixC, datasize_bytes/1e9
                 )){
                     std::cout << "  Result is correct\n";
                 } else {
@@ -185,15 +200,14 @@ int main(int argc, char** argv){
             }
 
             if (standalone) {
-                CCC(cudaFree(input_array_A));
-                CCC(cudaFree(input_array_B));
-                CCC(cudaFree(result_array));
+                CCC(cudaFree(matrixA));
+                CCC(cudaFree(matrixB));
+                CCC(cudaFree(matrixC));
             }
         }
 
-        single_gpu_time_ms = print_timing_stats(
-            timing_ms, runs, datasize, cpu_time_ms, single_gpu_time_ms, 
-            multi_gpu_time_ms
+        update_and_print_timing_stats(
+            timing_ms, runs, &single_gpu_time, all_timings, timings
         );
     }
 }

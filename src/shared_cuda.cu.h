@@ -77,9 +77,9 @@ void setup_events(
 float get_runtime(
     cudaEvent_t start_event, cudaEvent_t end_event
 ) {
-    float runtime_ms;
-    CCC(cudaEventElapsedTime(&runtime_ms, start_event, end_event));
-    return runtime_ms;
+    float runtime_milliseconds;
+    CCC(cudaEventElapsedTime(&runtime_milliseconds, start_event, end_event));
+    return runtime_milliseconds;
 }
 
 // Not quite true runtime but will do for now
@@ -89,13 +89,13 @@ float get_mean_runtime(
     cudaEvent_t* start_events = *start_events_ptr;
     cudaEvent_t* end_events = *end_events_ptr;
 
-    float total = 0;
+    float total_milliseconds = 0;
 
     for (int device=0; device<devices; device++) {
-        total += get_runtime(start_events[device], end_events[device]);
+        total_milliseconds += get_runtime(start_events[device], end_events[device]);
     }
 
-    return total/devices;
+    return total_milliseconds/devices;
 }
 
 /**

@@ -1,10 +1,49 @@
 #ifndef SHARED_H
 #define SHARED_H
 
+#include <iostream>
 #include <iomanip>
 #include <thread>
 
 const auto processor_count = std::thread::hardware_concurrency();
+
+float get_throughput(float timing_microseconds, double data_bytes) {
+    float timing_seconds = timing_microseconds * 1e-6f;
+    float data_gigabytes = data_bytes /1e9f;
+    return (float)data_gigabytes / timing_seconds;
+}
+
+float get_flops(float timing_microseconds, long int operations) {
+    float timing_seconds = timing_microseconds * 1e-6f;
+    float giga_operations = operations /1e9f;
+    return (float)giga_operations / timing_seconds;
+}
+
+struct timing_stat {
+    float timing_microseconds;
+    unsigned long int flops;
+    unsigned long int datasize_bytes;
+    std::string type;
+
+    timing_stat(
+        std::string type, 
+        long int flops, 
+        long int datasize_bytes
+    ): type(type), 
+       flops(flops), 
+       datasize_bytes(datasize_bytes)
+    {
+        timing_microseconds = -1;
+    }
+
+    float throughput_gb() {
+        return get_throughput(timing_microseconds, datasize_bytes);
+    }
+
+    float throughput_gf() {
+        return get_flops(timing_microseconds, flops);
+    }
+};
 
 void init_array(float* arr, unsigned long int array_len) {
     srand(5454);
@@ -72,21 +111,9 @@ void print_matrix(T* matrix, size_t width, size_t height) {
     }
 }
 
-float get_throughput(float mean_ms, double data_gigabytes) {
-    float mean_seconds = mean_ms * 1e-6f;
-    return (float)data_gigabytes / mean_seconds;
-}
-
-float get_flops(float mean_ms, long int operations) {
-    float mean_seconds = mean_ms * 1e-6f;
-    float giga_operations = operations /1e9f;
-    return (float)giga_operations / mean_seconds;
-}
-
-float print_timing_stats(
-    float* timing_array, size_t array_len, double data_gigabytes, 
-    float cpu_runtime_ms, float single_gpu_runtime_ms, 
-    float multi_gpu_runtime_ms
+void update_and_print_timing_stats(
+    float* timing_array, size_t array_len, timing_stat* to_update, 
+    const timing_stat* all_timings[], int timings
 ) {
     float mean_ms = 0;
     float min = timing_array[0];
@@ -104,32 +131,27 @@ float print_timing_stats(
     }
     mean_ms = total/array_len;
 
-    float gigabytes_per_second = get_throughput(mean_ms, data_gigabytes);
+    float gigabytes_per_second = get_throughput(mean_ms, to_update->datasize_bytes);
+    float gigaflops_per_second = get_flops(mean_ms, to_update->flops);
     std::cout << "    Total runtime: " << total <<"ms\n";
     std::cout << "    Min runtime:   " << min <<"ms\n";
     std::cout << "    Max runtime:   " << max <<"ms\n";
     std::cout << "    Mean runtime:  " << mean_ms <<"ms\n";
     std::cout << "    Throughput:    " << gigabytes_per_second <<"GB/sec\n";
+    std::cout << "    GLFOPS:        " << gigaflops_per_second <<"/sec\n";
     
-    if (cpu_runtime_ms != -1) {
-        std::cout << "      Speedup vs CPU:        x" 
-                  << std::setprecision(6) 
-                  << cpu_runtime_ms / mean_ms 
-                  << "\n";
+    for (int i=0; i<timings; i++) {
+        struct timing_stat timing = *all_timings[i];
+        if (timing.timing_microseconds != -1) {
+            std::cout << "      Speedup vs "
+                      << timing.type 
+                      << ": x" 
+                      << timing.timing_microseconds / mean_ms
+                      << "\n";
+
+        }
     }
-    if (single_gpu_runtime_ms != -1) {
-        std::cout << "      Speedup vs single GPU: x" 
-                  << std::setprecision(6) 
-                  << single_gpu_runtime_ms / mean_ms 
-                  << "\n";
-    }
-    if (multi_gpu_runtime_ms != -1) {
-        std::cout << "      Speedup vs multi GPU:  x" 
-                  << std::setprecision(6) 
-                  << multi_gpu_runtime_ms / mean_ms 
-                  << "\n";
-    }
-    return mean_ms;
+    to_update->timing_microseconds = mean_ms;
 }
 
 void print_loop_feedback(int run, int runs) {

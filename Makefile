@@ -15,6 +15,10 @@ matmul:
 	mkdir -p build
 	nvcc src/matmul.cu -o $^ build/matmul $(FLAGS)
 
+tiled_scan:
+	mkdir -p build
+	nvcc src/tiled_scan.cu -o $^ build/tiled_scan $(FLAGS)
+
 map_bench:
 	make map
 	./build/map 1000000000 100 -v

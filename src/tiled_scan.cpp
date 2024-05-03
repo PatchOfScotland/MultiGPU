@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <string.h>
 #include <sys/time.h>
 #include <stdlib.h>
@@ -19,7 +20,8 @@ float get_flops(float mean_ms, long int operations) {
     return (float)giga_operations / mean_seconds;
 }
 
-float print_timing_stats(float* timing_array, size_t array_len, long int operations, double data_gigabytes, 
+float print_timing_stats(float* timing_array, size_t array_len, 
+    long int operations, double data_gigabytes, 
     float naive_runtime_ms, float chunked_runtime_ms, 
     float trans_naive_runtime_ms, float trans_chunked_ms, 
     float submatrix_time_ms, float tiled_ms, float trans_tiled_ms
