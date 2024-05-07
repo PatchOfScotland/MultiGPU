@@ -147,7 +147,7 @@ int main(int argc, char** argv){
         tiled::singleGPU<false, false, array_type, 16>(
             matrixA, widthA, heightA, 
             matrixB, widthB, heightB, 
-            matrixC
+            matrixC, widthC, heightC
         );
 
         if (standalone) {
@@ -168,7 +168,7 @@ int main(int argc, char** argv){
             timing_ms[run] = tiled::singleGPU<false, false, array_type, 16>(
                 matrixA, widthA, heightA, 
                 matrixB, widthB, heightB, 
-                matrixC
+                matrixC, widthC, heightC
             );
 
 
@@ -224,7 +224,7 @@ int main(int argc, char** argv){
         tiled::multiGPU<false, false, array_type, 16>(
             matrixA, widthA, heightA, 
             matrixB, widthB, heightB, 
-            matrixC
+            matrixC, widthC, heightC
         );
 
         if (standalone) {
@@ -245,9 +245,8 @@ int main(int argc, char** argv){
             timing_ms[run] = tiled::multiGPU<false, false, array_type, 16>(
                 matrixA, widthA, heightA, 
                 matrixB, widthB, heightB, 
-                matrixC
+                matrixC, widthC, heightC
             );
-
 
             if (reduced_output == false) {
                 print_loop_feedback(run, runs);
@@ -260,6 +259,7 @@ int main(int argc, char** argv){
                     zero_matrix(matrixC, sizeC);
                 }
                 if (run==runs-1) {
+
                     if(cpuValidation<array_type>(
                         matrixA, widthA, heightA, 
                         matrixB, widthB, heightB, 

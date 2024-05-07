@@ -66,7 +66,7 @@ bool cpuValidation(
                 matrixC += matrixA[a] * matrixB[b];
             }
             if (abs(matrixC - validating[c]) > tolerance) {
-                //printf("%f does not match %f at [%d][%d] with tolerance: %f\n", matrixC, validating[c], i, j, tolerance);
+                printf("%f does not match %f at [%d][%d] with tolerance: %f\n", matrixC, validating[c], i, j, tolerance);
                 count++;
             }
         }

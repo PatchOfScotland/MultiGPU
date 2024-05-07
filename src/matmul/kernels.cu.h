@@ -18,21 +18,46 @@ T getElement(
 // heightA = widthB
 template <int isTA, int isTB, class T> 
 __global__ void mmmNaiveKernel(
-    T* matrixA, T* matrixB, T* matrixC, int widthA, int heightA, int widthB, int heightB
+    T* matrixA, int widthA, int heightA, 
+    T* matrixB, int widthB, int heightB, 
+    T* matrixC, int widthC, int heightC
 ) {
-  int i = blockIdx.y*blockDim.y + threadIdx.y; 
-  int j = blockIdx.x*blockDim.x + threadIdx.x;
+    int i = blockIdx.y*blockDim.y + threadIdx.y; 
+    int j = blockIdx.x*blockDim.x + threadIdx.x;
 
-  if( (i >= heightA) || (j >= widthB) ) return;
+    if( (i >= heightC) || (j >= widthC) ) return;
 
-  T accumulator = 0.0f;
-  for(int k = 0; k < widthA; k ++) {
-      T a = getElement<isTA, T>(i, k, matrixA, widthA, heightA);
-      T b = getElement<isTB, T>(k, j, matrixB, widthB, heightB);
-      accumulator += a*b;
-  }
+    T accumulator = 0.0f;
+    for(int k = 0; k < widthA; k ++) {
+        T a = getElement<isTA, T>(i, k, matrixA, widthA, heightA);
+        T b = getElement<isTB, T>(k, j, matrixB, widthB, heightB);
+        accumulator += a*b;
+    }
 
-  matrixC[i*widthB + j] = accumulator;
+    matrixC[i*widthC + j] = accumulator;
 }
+
+// heightA = widthB
+template <int isTA, int isTB, class T> 
+__global__ void mmmNaiveKernelMulti(
+    T* matrixA, int widthA, int heightA, 
+    T* matrixB, int widthB, int heightB, 
+    T* matrixC, int widthC, int heightC, 
+    int device_height_offset
+) {
+    int i = blockIdx.y*blockDim.y + threadIdx.y; 
+    int j = blockIdx.x*blockDim.x + threadIdx.x;
+
+    if( (i >= heightC) || (j >= widthC) ) return;
+
+    T accumulator = 0.0f;
+    for(int k = 0; k < widthA; k ++) {
+        T a = getElement<isTA, T>(i, k, matrixA, widthA, heightA);
+        T b = getElement<isTB, T>(k, j, matrixB, widthB, heightB);
+        accumulator += a*b;
+    }
+
+    matrixC[i*widthC + j] = accumulator;
+}   
 
 #endif
