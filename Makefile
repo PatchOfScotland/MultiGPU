@@ -1,4 +1,4 @@
-FLAGS=-Xcompiler -fopenmp -O3
+FLAGS=-Xcompiler -fopenmp -O3 -arch=sm_89
 PROGRAMS=map reduce matmul
 
 all: $(PROGRAMS)
