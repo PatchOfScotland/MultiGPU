@@ -75,6 +75,6 @@ bool cpuValidation(
     if (count == 0) {
         return true;
     }
-    printf("Got %d of potential %d mismatches\n", count, heightA*widthB);
+    printf("Got %ld of potential %d mismatches\n", count, heightA*widthB);
     return false;
 }

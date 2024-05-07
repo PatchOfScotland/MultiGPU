@@ -23,7 +23,7 @@ __global__ void mmmNaiveKernel(
   int i = blockIdx.y*blockDim.y + threadIdx.y; 
   int j = blockIdx.x*blockDim.x + threadIdx.x;
 
-  if( (i >= widthB) || (j >= heightA) ) return;
+  if( (i >= heightA) || (j >= widthB) ) return;
 
   T accumulator = 0.0f;
   for(int k = 0; k < widthA; k ++) {

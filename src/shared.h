@@ -67,6 +67,13 @@ void init_matrix(T* data, uint64_t size) {
 }
 
 template<class T>
+void zero_matrix(T* data, uint64_t size) {
+    #pragma omp parallel for
+    for (uint64_t i = 0; i < size; i++)
+        data[i] = 0;
+}
+
+template<class T>
 bool compare_arrays(T* array_1, T* array_2, size_t array_len){
 
     bool status = true;

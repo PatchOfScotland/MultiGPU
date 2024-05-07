@@ -166,19 +166,12 @@ int main(int argc, char** argv){
                 init_matrix<array_type>(matrixB, sizeB);
             }
 
-            //std::cout << "Input A: \n";
-            //print_matrix(matrixA, widthA, heightA);
-            //std::cout << "Input B: \n";
-            //print_matrix(matrixB, widthB, heightB);
-
             timing_ms[run] = singleGpuMatMul<false, false, array_type, 16>(
                 matrixA, widthA, heightA, 
                 matrixB, widthB, heightB, 
                 matrixC
             );
 
-            //std::cout << "Result: \n";
-            //print_matrix(matrixC, widthC, heightC);
 
             if (reduced_output == false) {
                 print_loop_feedback(run, runs);
@@ -186,16 +179,21 @@ int main(int argc, char** argv){
 
             // do this at the end as reading output array will shift it back to 
             // the host. Just use datasize_GB as crude tolerance for now.
-            if (validating && run==runs-1) {
-                if(cpuValidation<array_type>(
-                    matrixA, widthA, heightA, 
-                    matrixB, widthB, heightB, 
-                    matrixC, datasize_bytes/1e9
-                )){
-                    std::cout << "  Result is correct\n";
-                } else {
-                    std::cout << "  Result is incorrect. Skipping any "
-                              << "subsequent runs\n";
+            if (validating) {
+                if (run==runs-2) {
+                    zero_matrix(matrixC, sizeC);
+                }
+                if (run==runs-1) {
+                    if(cpuValidation<array_type>(
+                        matrixA, widthA, heightA, 
+                        matrixB, widthB, heightB, 
+                        matrixC, datasize_bytes/1e9
+                    )){
+                        std::cout << "  Result is correct\n";
+                    } else {
+                        std::cout << "  Result is incorrect. Skipping any "
+                                << "subsequent runs\n";
+                    }
                 }
             }
 
