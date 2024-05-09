@@ -5,6 +5,10 @@
 #include <iomanip>
 #include <thread>
 
+#define NO_HINTS    0
+#define HINTS       1
+#define PREFETCH    2
+
 const auto processor_count = std::thread::hardware_concurrency();
 
 float get_throughput(float timing_microseconds, double data_bytes) {
@@ -64,6 +68,13 @@ template<class T>
 void init_matrix(T* data, uint64_t size) {
     for (uint64_t i = 0; i < size; i++)
         data[i] = rand() / (T)RAND_MAX;
+}
+
+template<class T>
+void duplicate_matrix(T* origin, uint64_t size, T* target) {
+    #pragma omp parallel for
+    for (uint64_t i = 0; i < size; i++)
+        target[i] = origin[i];
 }
 
 template<class T>

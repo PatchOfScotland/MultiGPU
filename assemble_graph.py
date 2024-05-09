@@ -10,7 +10,7 @@ results = {}
 
 for result_file_name in result_files:
     method, size = result_file_name.replace(".out", "").split('_')
-    size = int(size.replace("KB", "000").replace("MB", "000000").replace("GB", "000000000"))
+    size = int(size.replace("KB", "000").replace("MB", "000000").replace("GB", "000000000").replace("GFLOPS", "000000000"))
     if method not in results:
         results[method] = {}
 

@@ -3,6 +3,38 @@
 #include "../shared_cuda.cu.h"
 #include "../shared.h"
 
+template<int isTA, int isTB, typename T, int TL>
+void per_device_management(
+        T* matrixA, unsigned int widthA, unsigned int heightA, 
+        T* matrixB, unsigned int widthB, unsigned int heightB, 
+        T* matrixC, unsigned int widthC, unsigned int per_device_heightC,
+        int device
+) {
+    cudaSetDevice(device);
+
+    T* sub_matrixA = matrixA + (device * per_device_heightC * widthA);
+    T* sub_matrixC = matrixC + (device * per_device_heightC * widthC);
+
+    // setup execution parameters
+    unsigned int dim_x = (widthC + TL - 1) / TL; 
+    unsigned int dim_y = (per_device_heightC + TL - 1) / TL;
+
+    dim3 block(TL, TL, 1);      // blockcount
+    dim3 grid(dim_x, dim_y, 1); // threads per block
+
+    cudaEvent_t sync_event;
+    CCC(cudaEventCreate(&sync_event));
+    mmmNaiveKernelMulti<isTA, isTB, T> <<< grid, block >>>(
+        sub_matrixA, widthA, per_device_heightC,
+        matrixB, widthB, heightB,
+        sub_matrixC, widthC, per_device_heightC,
+        device * per_device_heightC
+    );
+    CCC(cudaEventRecord(sync_event));
+    CCC(cudaEventSynchronize(sync_event));
+}
+
+
 namespace tiled {
     /**
     * Naive kernel, i.e., the only tiling performed is on the grid;
@@ -53,7 +85,8 @@ namespace tiled {
     float multiGPU(
         T* matrixA, unsigned int widthA, unsigned int heightA, 
         T* matrixB, unsigned int widthB, unsigned int heightB, 
-        T* matrixC, unsigned int widthC, unsigned int heightC
+        T* matrixC, unsigned int widthC, unsigned int heightC,
+        int hints
     ) {  
         int origin_device;
         CCC(cudaGetDevice(&origin_device));
@@ -65,33 +98,159 @@ namespace tiled {
         struct timeval start_time;
         struct timeval end_time;
 
+        if (hints == HINTS) {
+            for (int device=0; device<device_count; device++)
+            {
+                CCC(cudaMemAdvise(
+                    matrixA + (device * per_device_heightC * widthA), 
+                    widthA * per_device_heightC * sizeof(T), 
+                    cudaMemAdviseSetPreferredLocation, 
+                    device
+                ));
+                CCC(cudaMemAdvise(
+                    matrixC + (device * per_device_heightC * widthA), 
+                    widthC *per_device_heightC * sizeof(T), 
+                    cudaMemAdviseSetPreferredLocation, 
+                    device
+                ));
+            }
+        }
+        if (hints == PREFETCH) {
+            for (int device=0; device<device_count; device++)
+            {
+                cudaSetDevice(device);
+                cudaEvent_t sync_event;
+                CCC(cudaEventCreate(&sync_event));
+                CCC(cudaMemPrefetchAsync(
+                    matrixA + (device * per_device_heightC * widthA), 
+                    widthA * per_device_heightC * sizeof(T), 
+                    device
+                ));
+                CCC(cudaMemPrefetchAsync(
+                    matrixC + (device * per_device_heightC * widthA), 
+                    widthC * per_device_heightC * sizeof(T), 
+                    device
+                ));
+                CCC(cudaEventRecord(sync_event));
+                CCC(cudaEventSynchronize(sync_event));
+            }
+            cudaSetDevice(origin_device);
+        }
+
         gettimeofday(&start_time, NULL); 
 
-        for (int i=0; i<device_count; i++)
-        {
-            T* sub_matrixA = matrixA + (i * per_device_heightC * widthA);
-            T* sub_matrixC = matrixC + (i * per_device_heightC * widthC);
-
-            // setup execution parameters
-            unsigned int dim_x = (widthC + TL - 1) / TL; 
-            unsigned int dim_y = (per_device_heightC + TL - 1) / TL;
-
-            dim3 block(TL, TL, 1);      // blockcount
-            dim3 grid(dim_x, dim_y, 1); // threads per block
-
-            cudaEvent_t sync_event;
-            CCC(cudaEventCreate(&sync_event));
-            mmmNaiveKernelMulti<isTA, isTB, T> <<< grid, block >>>(
-                sub_matrixA, widthA, per_device_heightC,
-                matrixB, widthB, heightB,
-                sub_matrixC, widthC, per_device_heightC,
-                i * per_device_heightC
+        std::thread threads[device_count];
+        for (int device=0; device<device_count; device++) {
+            threads[device] = std::thread(
+                per_device_management<isTA, isTB, T, TL>,
+                matrixA, widthA, heightA, 
+                matrixB, widthB, heightB, 
+                matrixC, widthC, per_device_heightC,
+                device
             );
-            CCC(cudaEventRecord(sync_event));
-            CCC(cudaEventSynchronize(sync_event));
+        }
+
+        for (int device=0; device<device_count; device++) {
+            threads[device].join();        
         }
         
         gettimeofday(&end_time, NULL); 
+        
+        cudaSetDevice(origin_device);
+
+        float time_microseconds = (end_time.tv_usec+(1e6*end_time.tv_sec)) 
+            - (start_time.tv_usec+(1e6*start_time.tv_sec));
+    
+        return time_microseconds;
+    }
+
+    template<int isTA, int isTB, typename T, int TL>
+    float multiGPUduplicate(
+        T* matrixA, unsigned int widthA, unsigned int heightA, 
+        T** matrixBs, unsigned int widthB, unsigned int heightB, 
+        T* matrixC, unsigned int widthC, unsigned int heightC,
+        int hints
+    ) { 
+        int origin_device;
+        CCC(cudaGetDevice(&origin_device));
+        int device_count;
+        CCC(cudaGetDeviceCount(&device_count));
+
+        unsigned int per_device_heightC = (heightC + device_count - 1) / device_count;
+
+        struct timeval start_time;
+        struct timeval end_time;
+
+        if (hints == HINTS) {
+            for (int device=0; device<device_count; device++)
+            {
+                CCC(cudaMemAdvise(
+                    matrixA + (device * per_device_heightC * widthA), 
+                    widthA * per_device_heightC * sizeof(T), 
+                    cudaMemAdviseSetPreferredLocation, 
+                    device
+                ));
+                CCC(cudaMemAdvise(
+                    matrixBs[device], 
+                    widthB * heightB * sizeof(T), 
+                    cudaMemAdviseSetPreferredLocation, 
+                    device
+                ));
+                CCC(cudaMemAdvise(
+                    matrixC + (device * per_device_heightC * widthA), 
+                    widthC *per_device_heightC * sizeof(T), 
+                    cudaMemAdviseSetPreferredLocation, 
+                    device
+                ));
+            }
+        }
+        if (hints == PREFETCH) {
+            for (int device=0; device<device_count; device++)
+            {
+                cudaSetDevice(device);
+                cudaEvent_t sync_event;
+                CCC(cudaEventCreate(&sync_event));
+                CCC(cudaMemPrefetchAsync(
+                    matrixA + (device * per_device_heightC * widthA), 
+                    widthA * per_device_heightC * sizeof(T), 
+                    device
+                ));
+                CCC(cudaMemPrefetchAsync(
+                    matrixBs[device], 
+                    widthB * heightB * sizeof(T), 
+                    device
+                ));
+                CCC(cudaMemPrefetchAsync(
+                    matrixC + (device * per_device_heightC * widthA), 
+                    widthC * per_device_heightC * sizeof(T), 
+                    device
+                ));
+                CCC(cudaEventRecord(sync_event));
+                CCC(cudaEventSynchronize(sync_event));
+            }
+            cudaSetDevice(origin_device);
+        }
+
+        gettimeofday(&start_time, NULL); 
+
+        std::thread threads[device_count];
+        for (int device=0; device<device_count; device++) {
+            threads[device] = std::thread(
+                per_device_management<isTA, isTB, T, TL>,
+                matrixA, widthA, heightA, 
+                matrixBs[device], widthB, heightB, 
+                matrixC, widthC, per_device_heightC,
+                device
+            );
+        }
+
+        for (int device=0; device<device_count; device++) {
+            threads[device].join();        
+        }
+        
+        gettimeofday(&end_time, NULL); 
+        
+        cudaSetDevice(origin_device);
 
         float time_microseconds = (end_time.tv_usec+(1e6*end_time.tv_sec)) 
             - (start_time.tv_usec+(1e6*start_time.tv_sec));
