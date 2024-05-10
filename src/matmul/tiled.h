@@ -108,7 +108,7 @@ namespace tiled {
                     device
                 ));
                 CCC(cudaMemAdvise(
-                    matrixC + (device * per_device_heightC * widthA), 
+                    matrixC + (device * per_device_heightC * widthC), 
                     widthC *per_device_heightC * sizeof(T), 
                     cudaMemAdviseSetPreferredLocation, 
                     device
@@ -127,7 +127,7 @@ namespace tiled {
                     device
                 ));
                 CCC(cudaMemPrefetchAsync(
-                    matrixC + (device * per_device_heightC * widthA), 
+                    matrixC + (device * per_device_heightC * widthC), 
                     widthC * per_device_heightC * sizeof(T), 
                     device
                 ));
@@ -197,7 +197,7 @@ namespace tiled {
                     device
                 ));
                 CCC(cudaMemAdvise(
-                    matrixC + (device * per_device_heightC * widthA), 
+                    matrixC + (device * per_device_heightC * widthC), 
                     widthC *per_device_heightC * sizeof(T), 
                     cudaMemAdviseSetPreferredLocation, 
                     device
@@ -221,7 +221,7 @@ namespace tiled {
                     device
                 ));
                 CCC(cudaMemPrefetchAsync(
-                    matrixC + (device * per_device_heightC * widthA), 
+                    matrixC + (device * per_device_heightC * widthC), 
                     widthC * per_device_heightC * sizeof(T), 
                     device
                 ));
