@@ -5,9 +5,13 @@
 #include <iomanip>
 #include <thread>
 
-#define NO_HINTS    0
-#define HINTS       1
-#define PREFETCH    2
+#define NO_HINTS            0
+#define HINTS               1
+#define PREFETCH            2
+
+#define NO_REDUCE           0
+#define MEMCPY              1
+#define DUPLICATE           2
 
 const auto processor_count = std::thread::hardware_concurrency();
 
@@ -75,6 +79,16 @@ void duplicate_matrix(T* origin, uint64_t size, T* target) {
     #pragma omp parallel for
     for (uint64_t i = 0; i < size; i++)
         target[i] = origin[i];
+}
+
+template<class T>
+void transpose_matrix(T* input, size_t width, size_t height, T* output) {
+    #pragma omp parallel for collapse(2)
+    for (int w=0; w<width; w++) {
+        for (int h=0; h<height; h++) {
+            output[w*height + h] = input[h*width + w];
+        }
+    }
 }
 
 template<class T>

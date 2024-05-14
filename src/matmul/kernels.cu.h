@@ -58,6 +58,6 @@ __global__ void mmmNaiveKernelMulti(
     }
 
     matrixC[i*widthC + j] = accumulator;
-}   
+}  
 
 #endif
