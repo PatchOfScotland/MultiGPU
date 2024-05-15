@@ -13,11 +13,7 @@ for i in "32 1GFLOPS" \
          "20480 687GFLOPS" \
          "24576 824GFLOPS" \
          "28672 962GFLOPS" \
-         "32768 1099GFLOPS" \
-         "40960 1374GFLOPS" \
-         "49152 1649GFLOPS" \
-         "57344 1924GFLOPS" \
-         "65536 2199GFLOPS"
+         "32768 1099GFLOPS"
 do
     set -- $i
     echo "Benchmarking Matrix Multiplication $2"

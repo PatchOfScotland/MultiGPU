@@ -8,6 +8,138 @@
 
 typedef float array_type;
 
+void setup_ABC_managed(
+    array_type** matrixA, const unsigned long int sizeA,
+    array_type** matrixB, const unsigned long int sizeB,
+    array_type** matrixC, const unsigned long int sizeC
+) {
+    CCC(cudaMallocManaged(matrixA, sizeA*sizeof(array_type)));
+    CCC(cudaMallocManaged(matrixB, sizeB*sizeof(array_type)));
+    CCC(cudaMallocManaged(matrixC, sizeC*sizeof(array_type)));
+    init_matrix<array_type>(*matrixA, sizeA);
+    init_matrix<array_type>(*matrixB, sizeB);
+}
+
+void setup_ABC_malloced(
+    array_type** matrixA, const unsigned long int sizeA,
+    array_type** matrixB, const unsigned long int sizeB,
+    array_type** matrixC, const unsigned long int sizeC
+) {
+
+    *matrixA = (array_type*)malloc(sizeA*sizeof(array_type));
+    *matrixB = (array_type*)malloc(sizeB*sizeof(array_type));
+    *matrixC = (array_type*)calloc(sizeC, sizeof(array_type));
+    init_matrix<array_type>(*matrixA, sizeA);
+    init_matrix<array_type>(*matrixB, sizeB);
+}
+
+void setup_Bs_managed(
+    array_type** matrixB, array_type** matrixBs, 
+    const unsigned long int sizeB, const int device_count
+) {
+    matrixBs[0] = *matrixB;
+    for (int i=1; i<device_count; i++) {
+        CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
+        duplicate_matrix(matrixBs[0], sizeB, matrixBs[i]);
+    }
+}
+
+void setup_AsBsCs_managed(
+    array_type** matrixA, array_type** matrixAs, const int sizeSplitA,
+    array_type** matrixB, array_type** matrixBs, const int sizeB,
+    array_type** matrixCs, const int sizeSplitC, const int device_count
+) {
+    for (int device=0; device<device_count; device++) {
+        CCC(cudaMallocManaged(&matrixAs[device], sizeSplitA*sizeof(array_type)));
+        CCC(cudaMallocManaged(&matrixBs[device], sizeB*sizeof(array_type)));
+        CCC(cudaMallocManaged(&matrixCs[device], sizeSplitC*sizeof(array_type)));
+        duplicate_matrix(*matrixA+(sizeSplitA*device), sizeSplitA, matrixAs[device]);
+        duplicate_matrix(*matrixB, sizeB, matrixBs[device]);
+    }
+}
+
+void setup_AsBsCs_malloced(
+    array_type** matrixA, array_type** matrixAs, const int sizeSplitA,
+    array_type** matrixB, array_type** matrixBs, const int sizeB,
+    array_type** matrixCs, const int sizeSplitC, 
+    const int origin_device, const int device_count
+) {
+    for (int i=0; i<device_count; i++) {
+        CCC(cudaSetDevice(i));
+        CCC(cudaMalloc(&matrixAs[i], sizeSplitA*sizeof(array_type)));
+        CCC(cudaMalloc(&matrixBs[i], sizeB*sizeof(array_type)));
+        CCC(cudaMalloc(&matrixCs[i], sizeSplitC*sizeof(array_type)));
+        CCC(cudaMemcpy(matrixAs[i], matrixA+(sizeSplitA*i), sizeSplitA*sizeof(array_type), cudaMemcpyHostToDevice));
+        CCC(cudaMemcpy(matrixBs[i], matrixB, sizeB*sizeof(array_type), cudaMemcpyHostToDevice));
+    }
+    CCC(cudaSetDevice(origin_device));
+}
+
+void free_ABC_managed( 
+    array_type** matrixA, array_type** matrixB, array_type** matrixC
+) {
+    CCC(cudaFree(*matrixA));
+    CCC(cudaFree(*matrixB));
+    CCC(cudaFree(*matrixC));
+}
+
+void free_ABC_malloced( 
+    array_type** matrixA, array_type** matrixB, array_type** matrixC
+) {
+    free(*matrixA);
+    free(*matrixB);
+    free(*matrixC);
+}
+
+void free_Bs( 
+    array_type** matrixBs, const int device_count
+) {
+    for (int i=1; i<device_count; i++) {
+        CCC(cudaFree(matrixBs[i]));
+    }
+}
+
+void free_AsBsCs_managed( 
+    array_type** matrixAs, array_type** matrixBs, array_type** matrixCs, 
+    const int device_count
+) {
+    for (int i=0; i<device_count; i++) {
+        CCC(cudaFree(matrixAs[i]));
+        CCC(cudaFree(matrixBs[i]));
+        CCC(cudaFree(matrixCs[i]));
+    }  
+}
+
+void free_AsBsCs_malloced( 
+    array_type** matrixAs, array_type** matrixBs, array_type** matrixCs, 
+    const int origin_device, const int device_count
+) {
+    for (int i=0; i<device_count; i++) {
+        CCC(cudaSetDevice(i));
+        CCC(cudaFree(matrixAs[i]));
+        CCC(cudaFree(matrixBs[i]));
+        CCC(cudaFree(matrixCs[i]));
+    }   
+    CCC(cudaSetDevice(origin_device));
+}
+
+void validate(
+    array_type** matrixA, const unsigned int widthA, const unsigned int heightA,
+    array_type** matrixB, const unsigned int widthB, const unsigned int heightB,
+    array_type** matrixC, array_type tolerance
+) {
+    if(cpuValidation<array_type>(
+        *matrixA, widthA, heightA, 
+        *matrixB, widthB, heightB, 
+        *matrixC, tolerance
+    )){
+        std::cout << "  Result is correct\n";
+    } else {
+        std::cout << "  Result is incorrect. Skipping any "
+                << "subsequent runs\n";
+    }
+}
+
 int main(int argc, char** argv){
     if (argc < 5)
     {
@@ -39,6 +171,10 @@ int main(int argc, char** argv){
             reduced_output = true;
         }
     }
+    int origin_device;
+    CCC(cudaGetDevice(&origin_device));
+    int device_count;
+    CCC(cudaGetDeviceCount(&device_count));
 
     const unsigned long int sizeA = widthA * heightA;
     const unsigned long int sizeB = widthB * heightB;
@@ -75,9 +211,9 @@ int main(int argc, char** argv){
         std::cout << "Creating new datasets for each run\n";
     }
 
-    array_type* matrixA;
-    array_type* matrixB;
-    array_type* matrixC;
+    array_type* matrixA = NULL;
+    array_type* matrixB = NULL;
+    array_type* matrixC = NULL;
     
     struct timing_stat cpu_time = 
         timing_stat("CPU", operations, datasize_bytes);
@@ -102,15 +238,7 @@ int main(int argc, char** argv){
     struct timing_stat tiled_multi_gpu_split_prefetch_time = 
         timing_stat("tiled multi GPU split w/ prefetch", operations, datasize_bytes);
     struct timing_stat tiled_multi_gpu_split_malloc_time = 
-        timing_stat("tiled multi GPU split w/ malloc", operations, datasize_bytes);
-    struct timing_stat tiled_multi_gpu_split_reduce_time = 
-        timing_stat("tiled multi GPU split w/ reduction", operations, datasize_bytes);
-    struct timing_stat tiled_multi_gpu_split_reduce_hint_time = 
-        timing_stat("tiled multi GPU split w/ reduction and hints", operations, datasize_bytes);
-    struct timing_stat tiled_multi_gpu_split_reduce_prefetch_time = 
-        timing_stat("tiled multi GPU split w/ reduction and prefetch", operations, datasize_bytes);
-    struct timing_stat tiled_multi_gpu_split_reduce_malloc_time = 
-        timing_stat("tiled multi GPU split w/ reduction and malloc", operations, datasize_bytes);    
+        timing_stat("tiled multi GPU split w/ malloc", operations, datasize_bytes);    
     struct timing_stat recursive_single_gpu_time = 
         timing_stat("recursive single GPU", operations, datasize_bytes);
     const struct timing_stat* all_timings[] = {
@@ -126,30 +254,17 @@ int main(int argc, char** argv){
         &tiled_multi_gpu_split_hint_time,
         &tiled_multi_gpu_split_prefetch_time,
         &tiled_multi_gpu_split_malloc_time,
-        &tiled_multi_gpu_split_reduce_time,
-        &tiled_multi_gpu_split_reduce_hint_time,
-        &tiled_multi_gpu_split_reduce_prefetch_time,
-        &tiled_multi_gpu_split_reduce_malloc_time,
         &recursive_single_gpu_time
     };
     int timings = sizeof(all_timings)/sizeof(all_timings[0]);
 
-    CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-    CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-    CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-    init_matrix<array_type>(matrixA, sizeA);
-    init_matrix<array_type>(matrixB, sizeB);
+    setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
 
     float* timing_ms = (float*)calloc(runs, sizeof(float));
 
-    int origin_device;
-    CCC(cudaGetDevice(&origin_device));
-    int device_count;
-    CCC(cudaGetDeviceCount(&device_count));
-
     check_device_count();
 
-    if (false) { // Get CPU baseline
+    if (true) { // Get CPU baseline
         std::cout << "Getting CPU result\n";
 
         cpu_time.timing_microseconds = cpuMatMul<array_type>(
@@ -159,9 +274,7 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            CCC(cudaFree(matrixA));
-            CCC(cudaFree(matrixB));
-            CCC(cudaFree(matrixC));
+            free_ABC_managed(&matrixA, &matrixB, &matrixC);
         }
 
         //std::cout << "Input A: \n";
@@ -182,11 +295,7 @@ int main(int argc, char** argv){
         std::cout << "  Running a warmup\n";
 
         if (standalone) {
-            CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-            init_matrix<array_type>(matrixA, sizeA);
-            init_matrix<array_type>(matrixB, sizeB);
+            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
         }
 
         tiled::singleGPU<false, false, array_type, 16>(
@@ -196,18 +305,12 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            CCC(cudaFree(matrixA));
-            CCC(cudaFree(matrixB));
-            CCC(cudaFree(matrixC));
+            free_ABC_managed(&matrixA, &matrixB, &matrixC);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-                CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-                CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-                init_matrix<array_type>(matrixA, sizeA);
-                init_matrix<array_type>(matrixB, sizeB);
+                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
             }
 
             timing_ms[run] = tiled::singleGPU<false, false, array_type, 16>(
@@ -223,25 +326,16 @@ int main(int argc, char** argv){
 
             // do this at the end as reading output array will shift it back to 
             // the host. Just use datasize_GB as crude tolerance for now.
-            if (validating) {
-                if (run==runs-1) {
-                    if(cpuValidation<array_type>(
-                        matrixA, widthA, heightA, 
-                        matrixB, widthB, heightB, 
-                        matrixC, datasize_bytes/1e9
-                    )){
-                        std::cout << "  Result is correct\n";
-                    } else {
-                        std::cout << "  Result is incorrect. Skipping any "
-                                << "subsequent runs\n";
-                    }
-                }
+            if ((validating) && (run==runs-1)) {
+                validate(
+                    &matrixA, widthA, heightA, 
+                    &matrixB, widthB, heightB, 
+                    &matrixC, datasize_bytes/1e9
+                );
             }
 
             if (standalone) {
-                CCC(cudaFree(matrixA));
-                CCC(cudaFree(matrixB));
-                CCC(cudaFree(matrixC));
+                free_ABC_managed(&matrixA, &matrixB, &matrixC);
             }
         }
 
@@ -250,17 +344,13 @@ int main(int argc, char** argv){
         );
     }
 
-    if (false) { // Benchmark a tiled multi GPU raw
+    if (true) { // Benchmark a tiled multi GPU raw
         std::cout << "\nBenchmarking tiled multi GPU raw *****\n";
 
         std::cout << "  Running a warmup\n";
 
         if (standalone) {
-            CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-            init_matrix<array_type>(matrixA, sizeA);
-            init_matrix<array_type>(matrixB, sizeB);
+            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
         }
 
         tiled::multiGPU<false, false, array_type, 16>(
@@ -271,18 +361,12 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            CCC(cudaFree(matrixA));
-            CCC(cudaFree(matrixB));
-            CCC(cudaFree(matrixC));
+            free_ABC_managed(&matrixA, &matrixB, &matrixC);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-                CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-                CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-                init_matrix<array_type>(matrixA, sizeA);
-                init_matrix<array_type>(matrixB, sizeB);
+                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
             }
 
             timing_ms[run] = tiled::multiGPU<false, false, array_type, 16>(
@@ -298,26 +382,16 @@ int main(int argc, char** argv){
 
             // do this at the end as reading output array will shift it back to 
             // the host. Just use datasize_GB as crude tolerance for now.
-            if (validating) {
-                if (run==runs-1) {
-
-                    if(cpuValidation<array_type>(
-                        matrixA, widthA, heightA, 
-                        matrixB, widthB, heightB, 
-                        matrixC, datasize_bytes/1e9
-                    )){
-                        std::cout << "  Result is correct\n";
-                    } else {
-                        std::cout << "  Result is incorrect. Skipping any "
-                                << "subsequent runs\n";
-                    }
-                }
+            if ((validating) && (run==runs-1)) {
+                validate(
+                    &matrixA, widthA, heightA, 
+                    &matrixB, widthB, heightB, 
+                    &matrixC, datasize_bytes/1e9
+                );
             }
 
             if (standalone) {
-                CCC(cudaFree(matrixA));
-                CCC(cudaFree(matrixB));
-                CCC(cudaFree(matrixC));
+                free_ABC_managed(&matrixA, &matrixB, &matrixC);
             }
         }
 
@@ -326,17 +400,13 @@ int main(int argc, char** argv){
         );
     }
 
-    if (false) { // Benchmark a tiled multi GPU raw w/ hints
+    if (true) { // Benchmark a tiled multi GPU raw w/ hints
         std::cout << "\nBenchmarking tiled multi GPU raw w/ hints *****\n";
 
         std::cout << "  Running a warmup\n";
 
         if (standalone) {
-            CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-            init_matrix<array_type>(matrixA, sizeA);
-            init_matrix<array_type>(matrixB, sizeB);
+            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
         }
 
         tiled::multiGPU<false, false, array_type, 16>(
@@ -347,18 +417,12 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            CCC(cudaFree(matrixA));
-            CCC(cudaFree(matrixB));
-            CCC(cudaFree(matrixC));
+            free_ABC_managed(&matrixA, &matrixB, &matrixC);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-                CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-                CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-                init_matrix<array_type>(matrixA, sizeA);
-                init_matrix<array_type>(matrixB, sizeB);
+                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
             }
 
             timing_ms[run] = tiled::multiGPU<false, false, array_type, 16>(
@@ -374,26 +438,16 @@ int main(int argc, char** argv){
 
             // do this at the end as reading output array will shift it back to 
             // the host. Just use datasize_GB as crude tolerance for now.
-            if (validating) {
-                if (run==runs-1) {
-
-                    if(cpuValidation<array_type>(
-                        matrixA, widthA, heightA, 
-                        matrixB, widthB, heightB, 
-                        matrixC, datasize_bytes/1e9
-                    )){
-                        std::cout << "  Result is correct\n";
-                    } else {
-                        std::cout << "  Result is incorrect. Skipping any "
-                                << "subsequent runs\n";
-                    }
-                }
+            if ((validating) && (run==runs-1)) {
+                validate(
+                    &matrixA, widthA, heightA, 
+                    &matrixB, widthB, heightB, 
+                    &matrixC, datasize_bytes/1e9
+                );
             }
 
             if (standalone) {
-                CCC(cudaFree(matrixA));
-                CCC(cudaFree(matrixB));
-                CCC(cudaFree(matrixC));
+                free_ABC_managed(&matrixA, &matrixB, &matrixC);
             }
         }
 
@@ -402,17 +456,13 @@ int main(int argc, char** argv){
         );
     }
 
-    if (false) { // Benchmark a tiled multi GPU raw w/ prefetch
+    if (true) { // Benchmark a tiled multi GPU raw w/ prefetch
         std::cout << "\nBenchmarking tiled multi GPU raw w/ prefetch *****\n";
 
         std::cout << "  Running a warmup\n";
 
         if (standalone) {
-            CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-            init_matrix<array_type>(matrixA, sizeA);
-            init_matrix<array_type>(matrixB, sizeB);
+            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
         }
 
         tiled::multiGPU<false, false, array_type, 16>(
@@ -423,18 +473,12 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            CCC(cudaFree(matrixA));
-            CCC(cudaFree(matrixB));
-            CCC(cudaFree(matrixC));
+            free_ABC_managed(&matrixA, &matrixB, &matrixC);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-                CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-                CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-                init_matrix<array_type>(matrixA, sizeA);
-                init_matrix<array_type>(matrixB, sizeB);
+                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
             }
 
             timing_ms[run] = tiled::multiGPU<false, false, array_type, 16>(
@@ -450,26 +494,16 @@ int main(int argc, char** argv){
 
             // do this at the end as reading output array will shift it back to 
             // the host. Just use datasize_GB as crude tolerance for now.
-            if (validating) {
-                if (run==runs-1) {
-
-                    if(cpuValidation<array_type>(
-                        matrixA, widthA, heightA, 
-                        matrixB, widthB, heightB, 
-                        matrixC, datasize_bytes/1e9
-                    )){
-                        std::cout << "  Result is correct\n";
-                    } else {
-                        std::cout << "  Result is incorrect. Skipping any "
-                                << "subsequent runs\n";
-                    }
-                }
+            if ((validating) && (run==runs-1)) {
+                validate(
+                    &matrixA, widthA, heightA, 
+                    &matrixB, widthB, heightB, 
+                    &matrixC, datasize_bytes/1e9
+                );
             }
 
             if (standalone) {
-                CCC(cudaFree(matrixA));
-                CCC(cudaFree(matrixB));
-                CCC(cudaFree(matrixC));
+                free_ABC_managed(&matrixA, &matrixB, &matrixC);
             }
         }
 
@@ -483,22 +517,11 @@ int main(int argc, char** argv){
 
         std::cout << "  Running a warmup\n";
 
-        array_type* matrixBs[device_count];
-        matrixBs[0] = matrixB;
-        for (int i=1; i<device_count; i++) {
-            CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-        }
-
         if (standalone) {
-            CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixBs[0], sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-            init_matrix<array_type>(matrixA, sizeA);
-            init_matrix<array_type>(matrixBs[0], sizeB);
+            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
         }
-        for (int i=1; i<device_count; i++) {
-            duplicate_matrix(matrixB, sizeB, matrixBs[i]);
-        }
+        array_type* matrixBs[device_count];
+        setup_Bs_managed(&matrixB, matrixBs, sizeB, device_count);
 
         tiled::multiGPUduplicate<false, false, array_type, 16>(
             matrixA, widthA, heightA, 
@@ -508,24 +531,14 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            CCC(cudaFree(matrixA));
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixBs[i]));
-            }   
-            CCC(cudaFree(matrixC));
+            free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            free_Bs(matrixBs, device_count);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-                CCC(cudaMallocManaged(&matrixBs[0], sizeB*sizeof(array_type)));
-                CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-                init_matrix<array_type>(matrixA, sizeA);
-                init_matrix<array_type>(matrixBs[0], sizeB);
-                for (int i=1; i<device_count; i++) {
-                    CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-                    duplicate_matrix(matrixBs[0], sizeB, matrixBs[i]);
-                }
+                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
+                setup_Bs_managed(&matrixB, matrixBs, sizeB, device_count);
             }
 
             timing_ms[run] = tiled::multiGPUduplicate<false, false, array_type, 16>(
@@ -541,35 +554,22 @@ int main(int argc, char** argv){
 
             // do this at the end as reading output array will shift it back to 
             // the host. Just use datasize_GB as crude tolerance for now.
-            if (validating) {
-                if (run==runs-1) {
-
-                    if(cpuValidation<array_type>(
-                        matrixA, widthA, heightA, 
-                        matrixBs[0], widthB, heightB, 
-                        matrixC, datasize_bytes/1e9
-                    )){
-                        std::cout << "  Result is correct\n";
-                    } else {
-                        std::cout << "  Result is incorrect. Skipping any "
-                                << "subsequent runs\n";
-                    }
-                }
+            if ((validating) && (run==runs-1)) {
+                validate(
+                    &matrixA, widthA, heightA, 
+                    &matrixBs[0], widthB, heightB, 
+                    &matrixC, datasize_bytes/1e9
+                );
             }
 
             if (standalone) {
-                CCC(cudaFree(matrixA));
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaFree(matrixBs[i]));
-                } 
-                CCC(cudaFree(matrixC));
+                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_Bs(matrixBs, device_count);
             }
         }
 
         if (!standalone) {
-            for (int i=1; i<device_count; i++) {
-                CCC(cudaFree(matrixBs[i]));
-            } 
+            free_Bs(matrixBs, device_count);
         }
 
         update_and_print_timing_stats(
@@ -582,22 +582,11 @@ int main(int argc, char** argv){
 
         std::cout << "  Running a warmup\n";
 
-        array_type* matrixBs[device_count];
-        matrixBs[0] = matrixB;
-        for (int i=1; i<device_count; i++) {
-            CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-        }
-
         if (standalone) {
-            CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixBs[0], sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-            init_matrix<array_type>(matrixA, sizeA);
-            init_matrix<array_type>(matrixBs[0], sizeB);
+            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
         }
-        for (int i=1; i<device_count; i++) {
-            duplicate_matrix(matrixBs[0], sizeB, matrixBs[i]);
-        }
+        array_type* matrixBs[device_count];
+        setup_Bs_managed(&matrixB, matrixBs, sizeB, device_count);
 
         tiled::multiGPUduplicate<false, false, array_type, 16>(
             matrixA, widthA, heightA, 
@@ -607,24 +596,14 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            CCC(cudaFree(matrixA));
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixBs[i]));
-            }   
-            CCC(cudaFree(matrixC));
+            free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            free_Bs(matrixBs, device_count);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-                CCC(cudaMallocManaged(&matrixBs[0], sizeB*sizeof(array_type)));
-                CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-                init_matrix<array_type>(matrixA, sizeA);
-                init_matrix<array_type>(matrixBs[0], sizeB);
-                for (int i=1; i<device_count; i++) {
-                    CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-                    duplicate_matrix(matrixBs[0], sizeB, matrixBs[i]);
-                }
+                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
+                setup_Bs_managed(&matrixB, matrixBs, sizeB, device_count);
             }
 
             timing_ms[run] = tiled::multiGPUduplicate<false, false, array_type, 16>(
@@ -640,35 +619,22 @@ int main(int argc, char** argv){
 
             // do this at the end as reading output array will shift it back to 
             // the host. Just use datasize_GB as crude tolerance for now.
-            if (validating) {
-                if (run==runs-1) {
-
-                    if(cpuValidation<array_type>(
-                        matrixA, widthA, heightA, 
-                        matrixBs[0], widthB, heightB, 
-                        matrixC, datasize_bytes/1e9
-                    )){
-                        std::cout << "  Result is correct\n";
-                    } else {
-                        std::cout << "  Result is incorrect. Skipping any "
-                                << "subsequent runs\n";
-                    }
-                }
+            if ((validating) && (run==runs-1)) {
+                validate(
+                    &matrixA, widthA, heightA, 
+                    &matrixBs[0], widthB, heightB, 
+                    &matrixC, datasize_bytes/1e9
+                );
             }
 
             if (standalone) {
-                CCC(cudaFree(matrixA));
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaFree(matrixBs[i]));
-                } 
-                CCC(cudaFree(matrixC));
+                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_Bs(matrixBs, device_count);
             }
         }
 
         if (!standalone) {
-            for (int i=1; i<device_count; i++) {
-                CCC(cudaFree(matrixBs[i]));
-            } 
+            free_Bs(matrixBs, device_count); 
         }
 
         update_and_print_timing_stats(
@@ -681,22 +647,11 @@ int main(int argc, char** argv){
 
         std::cout << "  Running a warmup\n";
 
-        array_type* matrixBs[device_count];
-        matrixBs[0] = matrixB;
-        for (int i=1; i<device_count; i++) {
-            CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-        }
-
         if (standalone) {
-            CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixBs[0], sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-            init_matrix<array_type>(matrixA, sizeA);
-            init_matrix<array_type>(matrixBs[0], sizeB);
+            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
         }
-        for (int i=1; i<device_count; i++) {
-            duplicate_matrix(matrixBs[0], sizeB, matrixBs[i]);
-        }
+        array_type* matrixBs[device_count];
+        setup_Bs_managed(&matrixB, matrixBs, sizeB, device_count);
 
         tiled::multiGPUduplicate<false, false, array_type, 2>(
             matrixA, widthA, heightA, 
@@ -706,24 +661,14 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            CCC(cudaFree(matrixA));
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixBs[i]));
-            }   
-            CCC(cudaFree(matrixC));
+            free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            free_Bs(matrixBs, device_count);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-                CCC(cudaMallocManaged(&matrixBs[0], sizeB*sizeof(array_type)));
-                CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-                init_matrix<array_type>(matrixA, sizeA);
-                init_matrix<array_type>(matrixBs[0], sizeB);
-                for (int i=1; i<device_count; i++) {
-                    CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-                    duplicate_matrix(matrixBs[0], sizeB, matrixBs[i]);
-                }
+                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
+                setup_Bs_managed(&matrixB, matrixBs, sizeB, device_count);
             }
 
             timing_ms[run] = tiled::multiGPUduplicate<false, false, array_type, 2>(
@@ -739,35 +684,22 @@ int main(int argc, char** argv){
 
             // do this at the end as reading output array will shift it back to 
             // the host. Just use datasize_GB as crude tolerance for now.
-            if (validating) {
-                if (run==runs-1) {
-
-                    if(cpuValidation<array_type>(
-                        matrixA, widthA, heightA, 
-                        matrixBs[0], widthB, heightB, 
-                        matrixC, datasize_bytes/1e9
-                    )){
-                        std::cout << "  Result is correct\n";
-                    } else {
-                        std::cout << "  Result is incorrect. Skipping any "
-                                << "subsequent runs\n";
-                    }
-                }
+            if ((validating) && (run==runs-1)) {
+                validate(
+                    &matrixA, widthA, heightA, 
+                    &matrixBs[0], widthB, heightB, 
+                    &matrixC, datasize_bytes/1e9
+                );
             }
 
             if (standalone) {
-                CCC(cudaFree(matrixA));
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaFree(matrixBs[i]));
-                } 
-                CCC(cudaFree(matrixC));
+                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_Bs(matrixBs, device_count);
             }
         }
 
         if (!standalone) {
-            for (int i=1; i<device_count; i++) {
-                CCC(cudaFree(matrixBs[i]));
-            } 
+            free_Bs(matrixBs, device_count);
         }
 
         update_and_print_timing_stats(
@@ -775,7 +707,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (false) { // Benchmark a tiled multi GPU split
+    if (true) { // Benchmark a tiled multi GPU split
         std::cout << "\nBenchmarking tiled multi GPU split *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -783,561 +715,47 @@ int main(int argc, char** argv){
         array_type* matrixAs[device_count];
         array_type* matrixBs[device_count];
         array_type* matrixCs[device_count];
-        const int sub_heightA = (heightA + device_count - 1) / device_count;
-        const int sub_heightC = (heightC + device_count - 1) / device_count;
-        const int sub_sizeA = sub_heightA * widthA;
-        const int sub_sizeC = sub_heightC * widthC;
+        const int heightSplitA = (heightA + device_count - 1) / device_count;
+        const int heightSplitC = (heightC + device_count - 1) / device_count;
+        const int sizeSplitA = heightSplitA * widthA;
+        const int sizeSplitC = heightSplitC * widthC;
         
         if (standalone) {
-            CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-            init_matrix<array_type>(matrixA, sizeA);
-            init_matrix<array_type>(matrixB, sizeB);
+            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
         }
-        for (int i=0; i<device_count; i++) {
-            CCC(cudaMallocManaged(&matrixAs[i], sub_sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixCs[i], sub_sizeC*sizeof(array_type)));
-            duplicate_matrix(matrixA+(sub_sizeA*i), sub_sizeA, matrixAs[i]);
-            duplicate_matrix(matrixB, sizeB, matrixBs[i]);
-        }
+        setup_AsBsCs_managed(
+            &matrixA, matrixAs, sizeSplitA,
+            &matrixB, matrixBs, sizeB,
+            matrixCs, sizeSplitC, device_count
+        );
 
         tiled::multiGPUsplit<false, false, array_type, 16>(
-            matrixAs, widthA, sub_heightA, 
+            matrixAs, widthA, heightSplitA, 
             matrixBs, widthB, heightB,
-            matrixCs, widthC, sub_heightC,
-            matrixC, widthC, heightC,
-            NO_HINTS, NO_REDUCE
-        );
-
-        if (standalone) {
-            CCC(cudaFree(matrixA));
-            CCC(cudaFree(matrixB));
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixAs[i]));
-                CCC(cudaFree(matrixBs[i]));
-                CCC(cudaFree(matrixCs[i]));
-            }   
-        }
-
-        for (int run=0; run<runs; run++) {
-            if (standalone) {
-                if (standalone) {
-                    CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-                    init_matrix<array_type>(matrixA, sizeA);
-                    init_matrix<array_type>(matrixB, sizeB);
-                }
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaMallocManaged(&matrixAs[i], sub_sizeA*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixCs[i], sub_sizeC*sizeof(array_type)));
-                    duplicate_matrix(matrixA+(sub_sizeA*i), sub_sizeA, matrixAs[i]);
-                    duplicate_matrix(matrixB, sizeB, matrixBs[i]);
-                }
-            }
-
-            timing_ms[run] = tiled::multiGPUsplit<false, false, array_type, 16>(
-                matrixAs, widthA, sub_heightA, 
-                matrixBs, widthB, heightB,
-                matrixCs, widthC, sub_heightC,
-                matrixC, widthC, heightC,
-                NO_HINTS, NO_REDUCE
-            );
-
-            if (reduced_output == false) {
-                print_loop_feedback(run, runs);
-            }
-
-            for (int i=0; i<device_count; i++) {
-                duplicate_matrix(matrixCs[i], sub_sizeC, matrixC+(sub_sizeC*i));
-            }
-
-            // do this at the end as reading output array will shift it back to 
-            // the host. Just use datasize_GB as crude tolerance for now.
-            if (validating) {
-                if (run==runs-1) {
-                    if(cpuValidation<array_type>(
-                        matrixA, widthA, heightA, 
-                        matrixB, widthB, heightB, 
-                        matrixC, datasize_bytes/1e9
-                    )){
-                        std::cout << "  Result is correct\n";
-                    } else {
-                        std::cout << "  Result is incorrect. Skipping any "
-                                << "subsequent runs\n";
-                    }
-                }
-            }
-
-            if (standalone) {
-                CCC(cudaFree(matrixA));
-                CCC(cudaFree(matrixB));
-                CCC(cudaFree(matrixC));
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaFree(matrixAs[i]));
-                    CCC(cudaFree(matrixBs[i]));
-                    CCC(cudaFree(matrixCs[i]));
-                } 
-            }
-        }
-
-        if (!standalone) {
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixAs[i]));
-                CCC(cudaFree(matrixBs[i]));
-                CCC(cudaFree(matrixCs[i]));
-            } 
-        }
-
-        update_and_print_timing_stats(
-            timing_ms, runs, &tiled_multi_gpu_split_time, all_timings, timings
-        );
-    }
-
-    if (false) { // Benchmark a tiled multi GPU split w/ hints
-        std::cout << "\nBenchmarking tiled multi GPU split w/ hints *****\n";
-
-        std::cout << "  Running a warmup\n";
-
-        array_type* matrixAs[device_count];
-        array_type* matrixBs[device_count];
-        array_type* matrixCs[device_count];
-        const int sub_heightA = (heightA + device_count - 1) / device_count;
-        const int sub_heightC = (heightC + device_count - 1) / device_count;
-        const int sub_sizeA = sub_heightA * widthA;
-        const int sub_sizeC = sub_heightC * widthC;
-        
-        if (standalone) {
-            CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-            init_matrix<array_type>(matrixA, sizeA);
-            init_matrix<array_type>(matrixB, sizeB);
-        }
-        for (int i=0; i<device_count; i++) {
-            CCC(cudaMallocManaged(&matrixAs[i], sub_sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixCs[i], sub_sizeC*sizeof(array_type)));
-            duplicate_matrix(matrixA+(sub_sizeA*i), sub_sizeA, matrixAs[i]);
-            duplicate_matrix(matrixB, sizeB, matrixBs[i]);
-        }
-
-        tiled::multiGPUsplit<false, false, array_type, 16>(
-            matrixAs, widthA, sub_heightA, 
-            matrixBs, widthB, heightB,
-            matrixCs, widthC, sub_heightC,
-            matrixC, widthC, heightC,
-            HINTS, NO_REDUCE
-        );
-
-        if (standalone) {
-            CCC(cudaFree(matrixA));
-            CCC(cudaFree(matrixB));
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixAs[i]));
-                CCC(cudaFree(matrixBs[i]));
-                CCC(cudaFree(matrixCs[i]));
-            }   
-        }
-
-        for (int run=0; run<runs; run++) {
-            if (standalone) {
-                if (standalone) {
-                    CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-                    init_matrix<array_type>(matrixA, sizeA);
-                    init_matrix<array_type>(matrixB, sizeB);
-                }
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaMallocManaged(&matrixAs[i], sub_sizeA*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixCs[i], sub_sizeC*sizeof(array_type)));
-                    duplicate_matrix(matrixA+(sub_sizeA*i), sub_sizeA, matrixAs[i]);
-                    duplicate_matrix(matrixB, sizeB, matrixBs[i]);
-                }
-            }
-
-            timing_ms[run] = tiled::multiGPUsplit<false, false, array_type, 16>(
-                matrixAs, widthA, sub_heightA, 
-                matrixBs, widthB, heightB,
-                matrixCs, widthC, sub_heightC,
-                matrixC, widthC, heightC,
-                HINTS, NO_REDUCE
-            );
-
-            if (reduced_output == false) {
-                print_loop_feedback(run, runs);
-            }
-
-            for (int i=0; i<device_count; i++) {
-                duplicate_matrix(matrixCs[i], sub_sizeC, matrixC+(sub_sizeC*i));
-            }
-
-            // do this at the end as reading output array will shift it back to 
-            // the host. Just use datasize_GB as crude tolerance for now.
-            if (validating) {
-                if (run==runs-1) {
-                    if(cpuValidation<array_type>(
-                        matrixA, widthA, heightA, 
-                        matrixB, widthB, heightB, 
-                        matrixC, datasize_bytes/1e9
-                    )){
-                        std::cout << "  Result is correct\n";
-                    } else {
-                        std::cout << "  Result is incorrect. Skipping any "
-                                << "subsequent runs\n";
-                    }
-                }
-            }
-
-            if (standalone) {
-                CCC(cudaFree(matrixA));
-                CCC(cudaFree(matrixB));
-                CCC(cudaFree(matrixC));
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaFree(matrixAs[i]));
-                    CCC(cudaFree(matrixBs[i]));
-                    CCC(cudaFree(matrixCs[i]));
-                } 
-            }
-        }
-
-        if (!standalone) {
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixAs[i]));
-                CCC(cudaFree(matrixBs[i]));
-                CCC(cudaFree(matrixCs[i]));
-            } 
-        }
-
-        update_and_print_timing_stats(
-            timing_ms, runs, &tiled_multi_gpu_split_hint_time, all_timings, timings
-        );
-    }
-
-    if (false) { // Benchmark a tiled multi GPU split w/ prefetch
-        std::cout << "\nBenchmarking tiled multi GPU split w/ prefetch *****\n";
-
-        std::cout << "  Running a warmup\n";
-
-        array_type* matrixAs[device_count];
-        array_type* matrixBs[device_count];
-        array_type* matrixCs[device_count];
-        const int sub_heightA = (heightA + device_count - 1) / device_count;
-        const int sub_heightC = (heightC + device_count - 1) / device_count;
-        const int sub_sizeA = sub_heightA * widthA;
-        const int sub_sizeC = sub_heightC * widthC;
-        
-        if (standalone) {
-            CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixC, sizeB*sizeof(array_type)));
-            init_matrix<array_type>(matrixA, sizeA);
-            init_matrix<array_type>(matrixB, sizeB);
-        }
-        for (int i=0; i<device_count; i++) {
-            CCC(cudaMallocManaged(&matrixAs[i], sub_sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixCs[i], sub_sizeC*sizeof(array_type)));
-            duplicate_matrix(matrixA+(sub_sizeA*i), sub_sizeA, matrixAs[i]);
-            duplicate_matrix(matrixB, sizeB, matrixBs[i]);
-        }
-
-        tiled::multiGPUsplit<false, false, array_type, 16>(
-            matrixAs, widthA, sub_heightA, 
-            matrixBs, widthB, heightB,
-            matrixCs, widthC, sub_heightC,
-            matrixC, widthC, heightC,
-            PREFETCH, NO_REDUCE
-        );
-
-        if (standalone) {
-            CCC(cudaFree(matrixA));
-            CCC(cudaFree(matrixB));
-            CCC(cudaFree(matrixC));
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixAs[i]));
-                CCC(cudaFree(matrixBs[i]));
-                CCC(cudaFree(matrixCs[i]));
-            }   
-        }
-
-        for (int run=0; run<runs; run++) {
-            if (standalone) {
-                if (standalone) {
-                    CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-                    init_matrix<array_type>(matrixA, sizeA);
-                    init_matrix<array_type>(matrixB, sizeB);
-                }
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaMallocManaged(&matrixAs[i], sub_sizeA*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixCs[i], sub_sizeC*sizeof(array_type)));
-                    duplicate_matrix(matrixA+(sub_sizeA*i), sub_sizeA, matrixAs[i]);
-                    duplicate_matrix(matrixB, sizeB, matrixBs[i]);
-                }
-            }
-
-            timing_ms[run] = tiled::multiGPUsplit<false, false, array_type, 16>(
-                matrixAs, widthA, sub_heightA, 
-                matrixBs, widthB, heightB,
-                matrixCs, widthC, sub_heightC,
-                matrixC, widthC, heightC,
-                PREFETCH, NO_REDUCE
-            );
-
-            if (reduced_output == false) {
-                print_loop_feedback(run, runs);
-            }
-
-            for (int i=0; i<device_count; i++) {
-                duplicate_matrix(matrixCs[i], sub_sizeC, matrixC+(sub_sizeC*i));
-            }
-
-            // do this at the end as reading output array will shift it back to 
-            // the host. Just use datasize_GB as crude tolerance for now.
-            if (validating) {
-                if (run==runs-1) {
-                    if(cpuValidation<array_type>(
-                        matrixA, widthA, heightA, 
-                        matrixB, widthB, heightB, 
-                        matrixC, datasize_bytes/1e9
-                    )){
-                        std::cout << "  Result is correct\n";
-                    } else {
-                        std::cout << "  Result is incorrect. Skipping any "
-                                << "subsequent runs\n";
-                    }
-                }
-            }
-
-            if (standalone) {
-                CCC(cudaFree(matrixA));
-                CCC(cudaFree(matrixB));
-                CCC(cudaFree(matrixC));
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaFree(matrixAs[i]));
-                    CCC(cudaFree(matrixBs[i]));
-                    CCC(cudaFree(matrixCs[i]));
-                } 
-            }
-        }
-
-        if (!standalone) {
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixAs[i]));
-                CCC(cudaFree(matrixBs[i]));
-                CCC(cudaFree(matrixCs[i]));
-            } 
-        }
-
-        update_and_print_timing_stats(
-            timing_ms, runs, &tiled_multi_gpu_split_prefetch_time, all_timings, timings
-        );
-    }
-
-    if (false) { // Benchmark a tiled multi GPU split w/ malloc
-        std::cout << "\nBenchmarking tiled multi GPU split w/ malloc *****\n";
-
-        std::cout << "  Running a warmup\n";
-
-        array_type* matrixAs[device_count];
-        array_type* matrixBs[device_count];
-        array_type* matrixCs[device_count];
-        if (!standalone) {
-            cudaFree(matrixA);
-            cudaFree(matrixB);
-            cudaFree(matrixC);
-        }
-        matrixA = (array_type*)malloc(sizeA*sizeof(array_type));
-        matrixB = (array_type*)malloc(sizeB*sizeof(array_type));
-        matrixC = (array_type*)calloc(sizeC, sizeof(array_type));
-        const int sub_heightA = (heightA + device_count - 1) / device_count;
-        const int sub_heightC = (heightC + device_count - 1) / device_count;
-        const int sub_sizeA = sub_heightA * widthA;
-        const int sub_sizeC = sub_heightC * widthC;
-        
-        init_matrix<array_type>(matrixA, sizeA);
-        init_matrix<array_type>(matrixB, sizeB);
- 
-        for (int i=0; i<device_count; i++) {
-            CCC(cudaSetDevice(i));
-            CCC(cudaMalloc(&matrixAs[i], sub_sizeA*sizeof(array_type)));
-            CCC(cudaMalloc(&matrixBs[i], sizeB*sizeof(array_type)));
-            CCC(cudaMalloc(&matrixCs[i], sub_sizeC*sizeof(array_type)));
-            CCC(cudaMemcpy(matrixAs[i], matrixA+(sub_sizeA*i), sub_sizeA*sizeof(array_type), cudaMemcpyHostToDevice));
-            CCC(cudaMemcpy(matrixBs[i], matrixB, sizeB*sizeof(array_type), cudaMemcpyHostToDevice));
-        }
-
-        CCC(cudaSetDevice(origin_device));
-
-        tiled::multiGPUsplit<false, false, array_type, 16>(
-            matrixAs, widthA, sub_heightA, 
-            matrixBs, widthB, heightB,
-            matrixCs, widthC, sub_heightC,
-            matrixC, widthC, heightC,
-            NO_HINTS, NO_REDUCE
-        );
-
-        if (standalone) {
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaSetDevice(i));
-                CCC(cudaFree(matrixAs[i]));
-                CCC(cudaFree(matrixBs[i]));
-                CCC(cudaFree(matrixCs[i]));
-            }   
-            CCC(cudaSetDevice(origin_device));
-        }
-
-        for (int run=0; run<runs; run++) {
-            if (standalone) {
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaSetDevice(i));
-                    CCC(cudaMalloc(&matrixAs[i], sub_sizeA*sizeof(array_type)));
-                    CCC(cudaMalloc(&matrixBs[i], sizeB*sizeof(array_type)));
-                    CCC(cudaMalloc(&matrixCs[i], sub_sizeC*sizeof(array_type)));
-                    CCC(cudaMemcpy(matrixAs[i], matrixA+(sub_sizeA*i), sub_sizeA*sizeof(array_type), cudaMemcpyHostToDevice));
-                    CCC(cudaMemcpy(matrixBs[i], matrixB, sizeB*sizeof(array_type), cudaMemcpyHostToDevice));
-                }
-                CCC(cudaSetDevice(origin_device));
-            }
-
-            timing_ms[run] = tiled::multiGPUsplit<false, false, array_type, 16>(
-                matrixAs, widthA, sub_heightA, 
-                matrixBs, widthB, heightB,
-                matrixCs, widthC, sub_heightC,
-                matrixC, widthC, heightC,
-                NO_HINTS, NO_REDUCE
-            );
-
-            if (reduced_output == false) {
-                print_loop_feedback(run, runs);
-            }
-
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaSetDevice(i));
-                CCC(cudaMemcpy(matrixC+(sub_sizeC*i), matrixCs[i], sub_sizeC*sizeof(array_type), cudaMemcpyDeviceToHost));
-            }
-            CCC(cudaSetDevice(origin_device));
-
-            // do this at the end as reading output array will shift it back to 
-            // the host. Just use datasize_GB as crude tolerance for now.
-            if (validating) {
-                if (run==runs-1) {
-                    if(cpuValidation<array_type>(
-                        matrixA, widthA, heightA, 
-                        matrixB, widthB, heightB, 
-                        matrixC, datasize_bytes/1e9
-                    )){
-                        std::cout << "  Result is correct\n";
-                    } else {
-                        std::cout << "  Result is incorrect. Skipping any "
-                                << "subsequent runs\n";
-                    }
-                }
-            }
-
-            if (standalone) {
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaSetDevice(i));
-                    CCC(cudaFree(matrixAs[i]));
-                    CCC(cudaFree(matrixBs[i]));
-                    CCC(cudaFree(matrixCs[i]));
-                } 
-                CCC(cudaSetDevice(origin_device));
-            }
-        }
-
-        if (!standalone) {
-            free(matrixA);
-            free(matrixB);
-            free(matrixC);
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixAs[i]));
-                CCC(cudaFree(matrixBs[i]));
-                CCC(cudaFree(matrixCs[i]));
-            } 
-            CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-        }
-        
-        update_and_print_timing_stats(
-            timing_ms, runs, &tiled_multi_gpu_split_malloc_time, all_timings, timings
-        );
-    }
-
-    if (true) { // Benchmark a tiled multi GPU split w/ reduction
-        std::cout << "\nBenchmarking tiled multi GPU split w/ reduction *****\n";
-
-        std::cout << "  Running a warmup\n";
-
-        array_type* matrixAs[device_count];
-        array_type* matrixBs[device_count];
-        array_type* matrixCs[device_count];
-        const int sub_heightA = (heightA + device_count - 1) / device_count;
-        const int sub_heightC = (heightC + device_count - 1) / device_count;
-        const int sub_sizeA = sub_heightA * widthA;
-        const int sub_sizeC = sub_heightC * widthC;
-        
-        if (standalone) {
-            CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-            init_matrix<array_type>(matrixA, sizeA);
-            init_matrix<array_type>(matrixB, sizeB);
-        }
-        for (int i=0; i<device_count; i++) {
-            CCC(cudaMallocManaged(&matrixAs[i], sub_sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixCs[i], sub_sizeC*sizeof(array_type)));
-            duplicate_matrix(matrixA+(sub_sizeA*i), sub_sizeA, matrixAs[i]);
-            duplicate_matrix(matrixB, sizeB, matrixBs[i]);
-        }
-
-        tiled::multiGPUsplit<false, false, array_type, 16>(
-            matrixAs, widthA, sub_heightA, 
-            matrixBs, widthB, heightB,
-            matrixCs, widthC, sub_heightC,
+            matrixCs, widthC, heightSplitC,
             matrixC, widthC, heightC,
             NO_HINTS, DUPLICATE
         );
 
         if (standalone) {
-            CCC(cudaFree(matrixA));
-            CCC(cudaFree(matrixB));
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixAs[i]));
-                CCC(cudaFree(matrixBs[i]));
-                CCC(cudaFree(matrixCs[i]));
-            }   
+            free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, device_count);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                if (standalone) {
-                    CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-                    init_matrix<array_type>(matrixA, sizeA);
-                    init_matrix<array_type>(matrixB, sizeB);
-                }
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaMallocManaged(&matrixAs[i], sub_sizeA*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixCs[i], sub_sizeC*sizeof(array_type)));
-                    duplicate_matrix(matrixA+(sub_sizeA*i), sub_sizeA, matrixAs[i]);
-                    duplicate_matrix(matrixB, sizeB, matrixBs[i]);
-                }
+                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
+                setup_AsBsCs_managed(
+                    &matrixA, matrixAs, sizeSplitA,
+                    &matrixB, matrixBs, sizeB,
+                    matrixCs, sizeSplitC, device_count
+                );
             }
 
             timing_ms[run] = tiled::multiGPUsplit<false, false, array_type, 16>(
-                matrixAs, widthA, sub_heightA, 
+                matrixAs, widthA, heightSplitA, 
                 matrixBs, widthB, heightB,
-                matrixCs, widthC, sub_heightC,
+                matrixCs, widthC, heightSplitC,
                 matrixC, widthC, heightC,
                 NO_HINTS, DUPLICATE
             );
@@ -1348,115 +766,78 @@ int main(int argc, char** argv){
 
             // do this at the end as reading output array will shift it back to 
             // the host. Just use datasize_GB as crude tolerance for now.
-            if (validating) {
-                if (run==runs-1) {
-                    if(cpuValidation<array_type>(
-                        matrixA, widthA, heightA, 
-                        matrixB, widthB, heightB, 
-                        matrixC, datasize_bytes/1e9
-                    )){
-                        std::cout << "  Result is correct\n";
-                    } else {
-                        std::cout << "  Result is incorrect. Skipping any "
-                                << "subsequent runs\n";
-                    }
-                }
+            if ((validating) && (run==runs-1)) {
+                validate(
+                    &matrixA, widthA, heightA, 
+                    &matrixB, widthB, heightB, 
+                    &matrixC, datasize_bytes/1e9
+                );
             }
 
             if (standalone) {
-                CCC(cudaFree(matrixA));
-                CCC(cudaFree(matrixB));
-                CCC(cudaFree(matrixC));
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaFree(matrixAs[i]));
-                    CCC(cudaFree(matrixBs[i]));
-                    CCC(cudaFree(matrixCs[i]));
-                } 
+                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, device_count);
             }
         }
 
         if (!standalone) {
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixAs[i]));
-                CCC(cudaFree(matrixBs[i]));
-                CCC(cudaFree(matrixCs[i]));
-            } 
+            free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, device_count);
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, &tiled_multi_gpu_split_reduce_time, all_timings, timings
+            timing_ms, runs, &tiled_multi_gpu_split_time, all_timings, timings
         );
     }
 
-    if (true) { // Benchmark a tiled multi GPU split w/ reduction and hints
-        std::cout << "\nBenchmarking tiled multi GPU split w/ reduction and hints *****\n";
+    if (true) { // Benchmark a tiled multi GPU split w/ hints
+        std::cout << "\nBenchmarking tiled multi GPU split w/ hints *****\n";
 
         std::cout << "  Running a warmup\n";
 
         array_type* matrixAs[device_count];
         array_type* matrixBs[device_count];
         array_type* matrixCs[device_count];
-        const int sub_heightA = (heightA + device_count - 1) / device_count;
-        const int sub_heightC = (heightC + device_count - 1) / device_count;
-        const int sub_sizeA = sub_heightA * widthA;
-        const int sub_sizeC = sub_heightC * widthC;
+        const int heightSplitA = (heightA + device_count - 1) / device_count;
+        const int heightSplitC = (heightC + device_count - 1) / device_count;
+        const int sizeSplitA = heightSplitA * widthA;
+        const int sizeSplitC = heightSplitC * widthC;
         
         if (standalone) {
-            CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixC, sizeB*sizeof(array_type)));
-            init_matrix<array_type>(matrixA, sizeA);
-            init_matrix<array_type>(matrixB, sizeB);
+            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
         }
-        for (int i=0; i<device_count; i++) {
-            CCC(cudaMallocManaged(&matrixAs[i], sub_sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixCs[i], sub_sizeC*sizeof(array_type)));
-            duplicate_matrix(matrixA+(sub_sizeA*i), sub_sizeA, matrixAs[i]);
-            duplicate_matrix(matrixB, sizeB, matrixBs[i]);
-        }
+        setup_AsBsCs_managed(
+            &matrixA, matrixAs, sizeSplitA,
+            &matrixB, matrixBs, sizeB,
+            matrixCs, sizeSplitC, device_count
+        );
 
         tiled::multiGPUsplit<false, false, array_type, 16>(
-            matrixAs, widthA, sub_heightA, 
+            matrixAs, widthA, heightSplitA, 
             matrixBs, widthB, heightB,
-            matrixCs, widthC, sub_heightC,
+            matrixCs, widthC, heightSplitC,
             matrixC, widthC, heightC,
-            HINTS, DUPLICATE,
+            HINTS, DUPLICATE
         );
 
         if (standalone) {
-            CCC(cudaFree(matrixA));
-            CCC(cudaFree(matrixB));
-            CCC(cudaFree(matrixC));
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixAs[i]));
-                CCC(cudaFree(matrixBs[i]));
-                CCC(cudaFree(matrixCs[i]));
-            }   
+            free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, device_count);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                if (standalone) {
-                    CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-                    init_matrix<array_type>(matrixA, sizeA);
-                    init_matrix<array_type>(matrixB, sizeB);
-                }
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaMallocManaged(&matrixAs[i], sub_sizeA*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixCs[i], sub_sizeC*sizeof(array_type)));
-                    duplicate_matrix(matrixA+(sub_sizeA*i), sub_sizeA, matrixAs[i]);
-                    duplicate_matrix(matrixB, sizeB, matrixBs[i]);
-                }
+                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
+                setup_AsBsCs_managed(
+                    &matrixA, matrixAs, sizeSplitA,
+                    &matrixB, matrixBs, sizeB,
+                    matrixCs, sizeSplitC, device_count
+                );
             }
 
             timing_ms[run] = tiled::multiGPUsplit<false, false, array_type, 16>(
-                matrixAs, widthA, sub_heightA, 
+                matrixAs, widthA, heightSplitA, 
                 matrixBs, widthB, heightB,
-                matrixCs, widthC, sub_heightC,
+                matrixCs, widthC, heightSplitC,
                 matrixC, widthC, heightC,
                 HINTS, DUPLICATE
             );
@@ -1467,115 +848,78 @@ int main(int argc, char** argv){
 
             // do this at the end as reading output array will shift it back to 
             // the host. Just use datasize_GB as crude tolerance for now.
-            if (validating) {
-                if (run==runs-1) {
-                    if(cpuValidation<array_type>(
-                        matrixA, widthA, heightA, 
-                        matrixB, widthB, heightB, 
-                        matrixC, datasize_bytes/1e9
-                    )){
-                        std::cout << "  Result is correct\n";
-                    } else {
-                        std::cout << "  Result is incorrect. Skipping any "
-                                << "subsequent runs\n";
-                    }
-                }
+            if ((validating) && (run==runs-1)) {
+                validate(
+                    &matrixA, widthA, heightA, 
+                    &matrixB, widthB, heightB, 
+                    &matrixC, datasize_bytes/1e9
+                );
             }
 
             if (standalone) {
-                CCC(cudaFree(matrixA));
-                CCC(cudaFree(matrixB));
-                CCC(cudaFree(matrixC));
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaFree(matrixAs[i]));
-                    CCC(cudaFree(matrixBs[i]));
-                    CCC(cudaFree(matrixCs[i]));
-                } 
+                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, device_count);
             }
         }
 
         if (!standalone) {
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixAs[i]));
-                CCC(cudaFree(matrixBs[i]));
-                CCC(cudaFree(matrixCs[i]));
-            } 
+            free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, device_count);
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, &tiled_multi_gpu_split_reduce_hint_time, all_timings, timings
+            timing_ms, runs, &tiled_multi_gpu_split_hint_time, all_timings, timings
         );
     }
 
-    if (true) { // Benchmark a tiled multi GPU split w/ reduction and prefetch
-        std::cout << "\nBenchmarking tiled multi GPU split w/ reduction and prefetch *****\n";
+    if (true) { // Benchmark a tiled multi GPU split w/ prefetch
+        std::cout << "\nBenchmarking tiled multi GPU split w/ prefetch *****\n";
 
         std::cout << "  Running a warmup\n";
 
         array_type* matrixAs[device_count];
         array_type* matrixBs[device_count];
         array_type* matrixCs[device_count];
-        const int sub_heightA = (heightA + device_count - 1) / device_count;
-        const int sub_heightC = (heightC + device_count - 1) / device_count;
-        const int sub_sizeA = sub_heightA * widthA;
-        const int sub_sizeC = sub_heightC * widthC;
+        const int heightSplitA = (heightA + device_count - 1) / device_count;
+        const int heightSplitC = (heightC + device_count - 1) / device_count;
+        const int sizeSplitA = heightSplitA * widthA;
+        const int sizeSplitC = heightSplitC * widthC;
         
         if (standalone) {
-            CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixC, sizeB*sizeof(array_type)));
-            init_matrix<array_type>(matrixA, sizeA);
-            init_matrix<array_type>(matrixB, sizeB);
+            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
         }
-        for (int i=0; i<device_count; i++) {
-            CCC(cudaMallocManaged(&matrixAs[i], sub_sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixCs[i], sub_sizeC*sizeof(array_type)));
-            duplicate_matrix(matrixA+(sub_sizeA*i), sub_sizeA, matrixAs[i]);
-            duplicate_matrix(matrixB, sizeB, matrixBs[i]);
-        }
+        setup_AsBsCs_managed(
+            &matrixA, matrixAs, sizeSplitA,
+            &matrixB, matrixBs, sizeB,
+            matrixCs, sizeSplitC, device_count
+        );
 
         tiled::multiGPUsplit<false, false, array_type, 16>(
-            matrixAs, widthA, sub_heightA, 
+            matrixAs, widthA, heightSplitA, 
             matrixBs, widthB, heightB,
-            matrixCs, widthC, sub_heightC,
+            matrixCs, widthC, heightSplitC,
             matrixC, widthC, heightC,
             PREFETCH, DUPLICATE
         );
 
         if (standalone) {
-            CCC(cudaFree(matrixA));
-            CCC(cudaFree(matrixB));
-            CCC(cudaFree(matrixC));
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixAs[i]));
-                CCC(cudaFree(matrixBs[i]));
-                CCC(cudaFree(matrixCs[i]));
-            }   
+            free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, device_count);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                if (standalone) {
-                    CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
-                    init_matrix<array_type>(matrixA, sizeA);
-                    init_matrix<array_type>(matrixB, sizeB);
-                }
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaMallocManaged(&matrixAs[i], sub_sizeA*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-                    CCC(cudaMallocManaged(&matrixCs[i], sub_sizeC*sizeof(array_type)));
-                    duplicate_matrix(matrixA+(sub_sizeA*i), sub_sizeA, matrixAs[i]);
-                    duplicate_matrix(matrixB, sizeB, matrixBs[i]);
-                }
+                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
+                setup_AsBsCs_managed(
+                    &matrixA, matrixAs, sizeSplitA,
+                    &matrixB, matrixBs, sizeB,
+                    matrixCs, sizeSplitC, device_count
+                );
             }
 
             timing_ms[run] = tiled::multiGPUsplit<false, false, array_type, 16>(
-                matrixAs, widthA, sub_heightA, 
+                matrixAs, widthA, heightSplitA, 
                 matrixBs, widthB, heightB,
-                matrixCs, widthC, sub_heightC,
+                matrixCs, widthC, heightSplitC,
                 matrixC, widthC, heightC,
                 PREFETCH, DUPLICATE
             );
@@ -1586,117 +930,80 @@ int main(int argc, char** argv){
 
             // do this at the end as reading output array will shift it back to 
             // the host. Just use datasize_GB as crude tolerance for now.
-            if (validating) {
-                if (run==runs-1) {
-                    if(cpuValidation<array_type>(
-                        matrixA, widthA, heightA, 
-                        matrixB, widthB, heightB, 
-                        matrixC, datasize_bytes/1e9
-                    )){
-                        std::cout << "  Result is correct\n";
-                    } else {
-                        std::cout << "  Result is incorrect. Skipping any "
-                                << "subsequent runs\n";
-                    }
-                }
+            if ((validating) && (run==runs-1)) {
+                validate(
+                    &matrixA, widthA, heightA, 
+                    &matrixB, widthB, heightB, 
+                    &matrixC, datasize_bytes/1e9
+                );
             }
 
             if (standalone) {
-                CCC(cudaFree(matrixA));
-                CCC(cudaFree(matrixB));
-                CCC(cudaFree(matrixC));
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaFree(matrixAs[i]));
-                    CCC(cudaFree(matrixBs[i]));
-                    CCC(cudaFree(matrixCs[i]));
-                } 
+                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, device_count);
             }
         }
 
         if (!standalone) {
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixAs[i]));
-                CCC(cudaFree(matrixBs[i]));
-                CCC(cudaFree(matrixCs[i]));
-            } 
+            free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, device_count);
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, &tiled_multi_gpu_split_reduce_prefetch_time, all_timings, timings
+            timing_ms, runs, &tiled_multi_gpu_split_prefetch_time, all_timings, timings
         );
     }
 
-    if (true) { // Benchmark a tiled multi GPU split w/ reduction and malloc
-        std::cout << "\nBenchmarking tiled multi GPU split w/ reduction and malloc *****\n";
+    if (true) { // Benchmark a tiled multi GPU split w/ malloc
+        std::cout << "\nBenchmarking tiled multi GPU split w/ malloc *****\n";
 
         std::cout << "  Running a warmup\n";
 
-        array_type* matrixAs[device_count];
-        array_type* matrixBs[device_count];
-        array_type* matrixCs[device_count];
-        if (!standalone) {
-            cudaFree(matrixA);
-            cudaFree(matrixB);
-            cudaFree(matrixC);
-        }
-        matrixA = (array_type*)malloc(sizeA*sizeof(array_type));
-        matrixB = (array_type*)malloc(sizeB*sizeof(array_type));
-        matrixC = (array_type*)calloc(sizeC, sizeof(array_type));
-        const int sub_heightA = (heightA + device_count - 1) / device_count;
-        const int sub_heightC = (heightC + device_count - 1) / device_count;
-        const int sub_sizeA = sub_heightA * widthA;
-        const int sub_sizeC = sub_heightC * widthC;
-        
-        init_matrix<array_type>(matrixA, sizeA);
-        init_matrix<array_type>(matrixB, sizeB);
- 
-        for (int i=0; i<device_count; i++) {
-            CCC(cudaSetDevice(i));
-            CCC(cudaMalloc(&matrixAs[i], sub_sizeA*sizeof(array_type)));
-            CCC(cudaMalloc(&matrixBs[i], sizeB*sizeof(array_type)));
-            CCC(cudaMalloc(&matrixCs[i], sub_sizeC*sizeof(array_type)));
-            CCC(cudaMemcpy(matrixAs[i], matrixA+(sub_sizeA*i), sub_sizeA*sizeof(array_type), cudaMemcpyHostToDevice));
-            CCC(cudaMemcpy(matrixBs[i], matrixB, sizeB*sizeof(array_type), cudaMemcpyHostToDevice));
-        }
+        array_type* hostMatrixA;
+        array_type* hostMatrixB;
+        array_type* hostMatrixC;
+        array_type* deviceMatrixAs[device_count];
+        array_type* deviceMatrixBs[device_count];
+        array_type* deviceMatrixCs[device_count];
 
-        CCC(cudaSetDevice(origin_device));
+        setup_ABC_malloced(&hostMatrixA, sizeA, &hostMatrixB, sizeB, &hostMatrixC, sizeC);
+
+        const int heightSplitA = (heightA + device_count - 1) / device_count;
+        const int heightSplitC = (heightC + device_count - 1) / device_count;
+        const int sizeSplitA = heightSplitA * widthA;
+        const int sizeSplitC = heightSplitC * widthC;
+ 
+        setup_AsBsCs_managed(
+            &hostMatrixA, deviceMatrixAs, sizeSplitA,
+            &hostMatrixB, deviceMatrixBs, sizeB,
+            deviceMatrixCs, sizeSplitC, device_count
+        );
 
         tiled::multiGPUsplit<false, false, array_type, 16>(
-            matrixAs, widthA, sub_heightA, 
-            matrixBs, widthB, heightB,
-            matrixCs, widthC, sub_heightC,
-            matrixC, widthC, heightC,
+            deviceMatrixAs, widthA, heightSplitA, 
+            deviceMatrixBs, widthB, heightB,
+            deviceMatrixCs, widthC, heightSplitC,
+            hostMatrixC, widthC, heightC,
             NO_HINTS, MEMCPY
         );
 
         if (standalone) {
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaSetDevice(i));
-                CCC(cudaFree(matrixAs[i]));
-                CCC(cudaFree(matrixBs[i]));
-                CCC(cudaFree(matrixCs[i]));
-            }   
-            CCC(cudaSetDevice(origin_device));
+            free_AsBsCs_malloced(deviceMatrixAs, deviceMatrixBs, deviceMatrixCs, origin_device, device_count);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaSetDevice(i));
-                    CCC(cudaMalloc(&matrixAs[i], sub_sizeA*sizeof(array_type)));
-                    CCC(cudaMalloc(&matrixBs[i], sizeB*sizeof(array_type)));
-                    CCC(cudaMalloc(&matrixCs[i], sub_sizeC*sizeof(array_type)));
-                    CCC(cudaMemcpy(matrixAs[i], matrixA+(sub_sizeA*i), sub_sizeA*sizeof(array_type), cudaMemcpyHostToDevice));
-                    CCC(cudaMemcpy(matrixBs[i], matrixB, sizeB*sizeof(array_type), cudaMemcpyHostToDevice));
-                }
-                CCC(cudaSetDevice(origin_device));
+                setup_AsBsCs_managed(
+                    &hostMatrixA, deviceMatrixAs, sizeSplitA,
+                    &hostMatrixB, deviceMatrixBs, sizeB,
+                    deviceMatrixCs, sizeSplitC, device_count
+                );
             }
 
             timing_ms[run] = tiled::multiGPUsplit<false, false, array_type, 16>(
-                matrixAs, widthA, sub_heightA, 
-                matrixBs, widthB, heightB,
-                matrixCs, widthC, sub_heightC,
-                matrixC, widthC, heightC,
+                deviceMatrixAs, widthA, heightSplitA, 
+                deviceMatrixBs, widthB, heightB,
+                deviceMatrixCs, widthC, heightSplitC,
+                hostMatrixC, widthC, heightC,
                 NO_HINTS, MEMCPY
             );
 
@@ -1704,56 +1011,28 @@ int main(int argc, char** argv){
                 print_loop_feedback(run, runs);
             }
 
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaSetDevice(i));
-                CCC(cudaMemcpy(matrixC+(sub_sizeC*i), matrixCs[i], sub_sizeC*sizeof(array_type), cudaMemcpyDeviceToHost));
-            }
-            CCC(cudaSetDevice(origin_device));
-
             // do this at the end as reading output array will shift it back to 
             // the host. Just use datasize_GB as crude tolerance for now.
-            if (validating) {
-                if (run==runs-1) {
-                    if(cpuValidation<array_type>(
-                        matrixA, widthA, heightA, 
-                        matrixB, widthB, heightB, 
-                        matrixC, datasize_bytes/1e9
-                    )){
-                        std::cout << "  Result is correct\n";
-                    } else {
-                        std::cout << "  Result is incorrect. Skipping any "
-                                << "subsequent runs\n";
-                    }
-                }
+            if ((validating) && (run==runs-1)) {
+                validate(
+                    &hostMatrixA, widthA, heightA, 
+                    &hostMatrixB, widthB, heightB, 
+                    &hostMatrixC, datasize_bytes/1e9
+                );
             }
 
             if (standalone) {
-                for (int i=0; i<device_count; i++) {
-                    CCC(cudaSetDevice(i));
-                    CCC(cudaFree(matrixAs[i]));
-                    CCC(cudaFree(matrixBs[i]));
-                    CCC(cudaFree(matrixCs[i]));
-                } 
-                CCC(cudaSetDevice(origin_device));
+                free_AsBsCs_malloced(deviceMatrixAs, deviceMatrixBs, deviceMatrixCs, origin_device, device_count);
             }
         }
 
         if (!standalone) {
-            free(matrixA);
-            free(matrixB);
-            free(matrixC);
-            for (int i=0; i<device_count; i++) {
-                CCC(cudaFree(matrixAs[i]));
-                CCC(cudaFree(matrixBs[i]));
-                CCC(cudaFree(matrixCs[i]));
-            } 
-            CCC(cudaMallocManaged(&matrixA, sizeA*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixB, sizeB*sizeof(array_type)));
-            CCC(cudaMallocManaged(&matrixC, sizeC*sizeof(array_type)));
+            free_ABC_malloced(&hostMatrixA, &hostMatrixB, &hostMatrixC);
+            free_AsBsCs_malloced(deviceMatrixAs, deviceMatrixBs, deviceMatrixCs, origin_device, device_count);
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, &tiled_multi_gpu_split_reduce_malloc_time, all_timings, timings
+            timing_ms, runs, &tiled_multi_gpu_split_malloc_time, all_timings, timings
         );
     }
 }

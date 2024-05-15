@@ -342,6 +342,7 @@ namespace tiled {
 
         for (int device=0; device<device_count; device++) {
             threads[device].join();
+            cudaSetDevice(device);
             if (reduce == MEMCPY) {
                 CCC(cudaMemcpy(
                     matrixC + (split_widthC * split_heightC * device), 
@@ -357,6 +358,7 @@ namespace tiled {
                 );
             }
         }
+        cudaSetDevice(origin_device);
         
         gettimeofday(&end_time, NULL); 
         
