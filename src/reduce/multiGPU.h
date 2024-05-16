@@ -48,12 +48,11 @@ float commutativeMultiGpuReduction(
     typename Reduction::InputElement* input_array, 
     typename Reduction::ReturnElement* accumulator, 
     const unsigned long int array_len,
+    const int device_count,
     const bool use_hints
 ) {  
     int origin_device;
     CCC(cudaGetDevice(&origin_device));
-    int device_count;
-    CCC(cudaGetDeviceCount(&device_count));
 
     size_t block_count = min(
         (array_len + BLOCK_SIZE) / BLOCK_SIZE, PARALLEL_BLOCKS * device_count
@@ -122,7 +121,7 @@ float commutativeMultiGpuReduction(
             commutative_per_device_management<Reduction>, input_array, 
             all_device_results[device], all_device_accumulators[device],
             &accumulators[device], device_start, device_len, 
-            dev_block_count, device 
+            dev_block_count, device
         );
     }
 
@@ -163,7 +162,8 @@ void associative_per_device_management(
     const unsigned long int device_start, 
     const unsigned long int device_len, 
     const size_t dev_block_count, 
-    const int device
+    const int device,
+    const int device_count
 ) {
     CCC(cudaSetDevice(device));
     
@@ -214,12 +214,11 @@ float associativeMultiGpuReduction(
     typename Reduction::InputElement* input_array, 
     typename Reduction::ReturnElement* accumulator, 
     const unsigned long int array_len,
+    const int device_count,
     const bool use_hints
 ) {
     int origin_device;
     CCC(cudaGetDevice(&origin_device));
-    int device_count;
-    CCC(cudaGetDeviceCount(&device_count));
 
     size_t block_count = min(
         (array_len + BLOCK_SIZE) / BLOCK_SIZE, PARALLEL_BLOCKS * device_count
@@ -289,7 +288,7 @@ float associativeMultiGpuReduction(
             associative_per_device_management<Reduction>, input_array, 
             all_device_results[device], all_device_accumulators[device], 
             &accumulators[device], device_start, device_len, 
-            dev_block_count, device 
+            dev_block_count, device, device_count
         );
     }
 
@@ -325,17 +324,18 @@ float multiGpuReduction(
     typename Reduction::InputElement* input_array, 
     typename Reduction::ReturnElement* accumulator, 
     const unsigned long int array_len,
+    const int device_count,
     const bool use_hints=false
 ) {
 
     if (Reduction::commutative == true) {
         return commutativeMultiGpuReduction<Reduction>(
-            input_array, accumulator, array_len, use_hints
+            input_array, accumulator, array_len, device_count, use_hints
         );
     }
     else {
         return associativeMultiGpuReduction<Reduction>(
-            input_array, accumulator, array_len, use_hints
+            input_array, accumulator, array_len, device_count, use_hints
         );
     }
 }

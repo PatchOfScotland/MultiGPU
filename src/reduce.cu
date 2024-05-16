@@ -76,7 +76,7 @@ int main(int argc, char** argv){
     {
         std::cout << "Usage: " 
                   << argv[0] 
-                  << " <array length> <benchmark repeats>-v(validation) -s(standalone) -r(reduced output)\n";
+                  << " <array length> <benchmark repeats> -d(devices) <devices> -v(validation) -s(standalone) -r(reduced output)\n";
         exit(EXIT_FAILURE);
     } 
 
@@ -85,6 +85,11 @@ int main(int argc, char** argv){
     bool validating = false;
     bool standalone = false;
     bool reduced_output = false;
+
+    int origin_device;
+    CCC(cudaGetDevice(&origin_device));
+    int devices;
+    CCC(cudaGetDeviceCount(&devices));
 
     for (int i=0; i<argc; i++) {
         if (strcmp(argv[i], "-v") == 0) {
@@ -96,7 +101,12 @@ int main(int argc, char** argv){
         if (strcmp(argv[i], "-r") == 0) {
             reduced_output = true;
         }
+        if ((strcmp(argv[i], "-d") == 0 ) && (i+1<argc)) {
+            devices = atoi(argv[i+1]);
+        }
     }
+
+    print_device_info(devices);
 
     unsigned long int datasize_bytes = (unsigned long int)((array_len*2*sizeof(array_type)));
     unsigned long int operations = (unsigned long int)array_len;
@@ -142,13 +152,6 @@ int main(int argc, char** argv){
     init_sparse_array(input_array, array_len, 10000);
 
     float* timing_ms = (float*)calloc(runs, sizeof(float));
-
-    int origin_device;
-    CCC(cudaGetDevice(&origin_device));
-    int device_count;
-    CCC(cudaGetDeviceCount(&device_count));
-
-    check_device_count();
 
     { // Get CPU baseline
         std::cout << "Getting CPU result\n";
@@ -246,7 +249,7 @@ int main(int argc, char** argv){
 
         std::cout << "  Running a warmup\n";
         multiGpuReduction<Add<array_type,return_type>>(
-            input_array, output, array_len
+            input_array, output, array_len, devices
         );
 
         if (standalone) {
@@ -262,7 +265,7 @@ int main(int argc, char** argv){
             }
 
             timing_ms[run] = multiGpuReduction<Add<array_type,return_type>>(
-                input_array, output, array_len
+                input_array, output, array_len, devices
             );
 
             if (reduced_output == false) {
@@ -313,7 +316,7 @@ int main(int argc, char** argv){
 
         std::cout << "  Running a warmup\n";
         multiGpuReduction<Add<array_type,return_type>>(
-            input_array, output, array_len, true
+            input_array, output, array_len, devices, true
         );
 
         if (standalone) {
@@ -329,7 +332,7 @@ int main(int argc, char** argv){
             }
 
             timing_ms[run] = multiGpuReduction<Add<array_type,return_type>>(
-                input_array, output, array_len, true
+                input_array, output, array_len, devices, true
             );
 
             if (reduced_output == false) {
@@ -449,7 +452,7 @@ int main(int argc, char** argv){
 
         std::cout << "  Running a warmup\n";
         multiGpuReduction<AddNonCommutative<array_type,return_type>>(
-            input_array, output, array_len
+            input_array, output, array_len, devices
         );
 
         if (standalone) {
@@ -465,7 +468,7 @@ int main(int argc, char** argv){
             }
 
             timing_ms[run] = multiGpuReduction<AddNonCommutative<array_type,return_type>>(
-                input_array, output, array_len
+                input_array, output, array_len, devices
             );
 
             if (reduced_output == false) {
@@ -517,7 +520,7 @@ int main(int argc, char** argv){
 
         std::cout << "  Running a warmup\n";
         multiGpuReduction<AddNonCommutative<array_type,return_type>>(
-            input_array, output, array_len, true
+            input_array, output, array_len, devices, true
         );
 
         if (standalone) {
@@ -533,7 +536,7 @@ int main(int argc, char** argv){
             }
 
             timing_ms[run] = multiGpuReduction<AddNonCommutative<array_type,return_type>>(
-                input_array, output, array_len, true
+                input_array, output, array_len, devices, true
             );
 
             if (reduced_output == false) {

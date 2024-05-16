@@ -6,13 +6,11 @@ float multiGpuStreamMapping(
     typename MappedFunction::X x, 
     typename MappedFunction::ReturnElement* output_array, 
     const unsigned long int array_len, 
-    const cudaStream_t* streams, 
-    const int stream_count
+    const cudaStream_t* streams,
+    const int device_count
 ) {  
     int origin_device;
     CCC(cudaGetDevice(&origin_device));
-    int device_count;
-    CCC(cudaGetDeviceCount(&device_count));
 
     size_t block_count = (array_len + BLOCK_SIZE - 1) / BLOCK_SIZE;
     size_t dev_block_count = (block_count + device_count - 1) / device_count;

@@ -61,6 +61,7 @@ void per_device_management_split(
     CCC(cudaEventRecord(sync_event));
     CCC(cudaEventSynchronize(sync_event));
 }
+
 namespace tiled {
     /**
     * Naive kernel, i.e., the only tiling performed is on the grid;
@@ -112,12 +113,10 @@ namespace tiled {
         T* matrixA, unsigned int widthA, unsigned int heightA, 
         T* matrixB, unsigned int widthB, unsigned int heightB, 
         T* matrixC, unsigned int widthC, unsigned int heightC,
-        int hints
+        const int device_count, int hints
     ) {  
         int origin_device;
         CCC(cudaGetDevice(&origin_device));
-        int device_count;
-        CCC(cudaGetDeviceCount(&device_count));
 
         unsigned int per_device_heightC = (heightC + device_count - 1) / device_count;
 
@@ -174,12 +173,10 @@ namespace tiled {
         T* matrixA, unsigned int widthA, unsigned int heightA, 
         T** matrixBs, unsigned int widthB, unsigned int heightB, 
         T* matrixC, unsigned int widthC, unsigned int heightC,
-        int hints
+        const int device_count, int hints
     ) { 
         int origin_device;
         CCC(cudaGetDevice(&origin_device));
-        int device_count;
-        CCC(cudaGetDeviceCount(&device_count));
 
         unsigned int per_device_heightC = (heightC + device_count - 1) / device_count;
 
@@ -268,12 +265,10 @@ namespace tiled {
         T** matrixBs, unsigned int widthB, unsigned int heightB, 
         T** matrixCs, unsigned int split_widthC, unsigned int split_heightC,
         T* matrixC, unsigned int widthC, unsigned int heightC,
-        int hints, int reduce
+        const int device_count, int hints, int reduce
     ) { 
         int origin_device;
         CCC(cudaGetDevice(&origin_device));
-        int device_count;
-        CCC(cudaGetDeviceCount(&device_count));
 
         struct timeval start_time;
         struct timeval end_time;

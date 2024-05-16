@@ -17,6 +17,7 @@
 const size_t BLOCK_SIZE = 1024;
 const size_t PARALLEL_BLOCKS = 65535;
 const size_t ELEMENTS_PER_THREAD = 12;
+const size_t TILE_SIZE = 16;
 const size_t CANNON_BLOCK = 32;
 
 
@@ -51,13 +52,34 @@ inline void cuda_assert(
     }
 }
 
-void check_device_count() {
+void check_device_count(int devices) {
     int device_count;
     CCC(cudaGetDeviceCount(&device_count));
-    
-    if (device_count == 1) {
-        std::cout << "!!! Only a single device detected !!!\n";
+
+    if (devices > device_count) {
+        std::cout << "Requested more devices (" 
+                  << devices 
+                  << ") than exist locally (" 
+                  << device_count 
+                  << ")\n";
+        exit(1); 
     }
+}
+
+void print_device_info(int devices) {
+    check_device_count(devices);
+    for (int i = 0; i < devices; i++) {
+        cudaDeviceProp prop;
+        cudaGetDeviceProperties(&prop, i);
+        printf("Using device: %d\n", i);
+        printf("  Device name: %s\n", prop.name);
+        printf("  Memory Clock Rate (KHz): %d\n",
+               prop.memoryClockRate);
+        printf("  Memory Bus Width (bits): %d\n",
+               prop.memoryBusWidth);
+        printf("  Peak Memory Bandwidth (GB/s): %f\n\n",
+            2.0*prop.memoryClockRate*(prop.memoryBusWidth/8)/1.0e6);
+  }
 }
 
 void setup_events(
@@ -127,7 +149,7 @@ uint32_t getNumBlocks(
 
     if(num_blocks > BLOCK_SIZE) {
         printf("Broken Assumption: number of blocks %d exceeds maximal block "
-               "size: %d. BLOCK_SIZE: %d. Exiting!"
+               "size: %ld. BLOCK_SIZE: %ld. Exiting!"
                , num_blocks, BLOCK_SIZE, BLOCK_SIZE);
         exit(1);
     }

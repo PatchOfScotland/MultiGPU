@@ -30,7 +30,7 @@ int main(int argc, char** argv){
     {
         std::cout << "Usage: " 
                   << argv[0] 
-                  << " <array length> <benchmark repeats> -v(validate) -r(reduced output) -s(standalone timings)\n";
+                  << " <array length> <benchmark repeats> -d(devices) <devices> -v(validate) -r(reduced output) -s(standalone timings)\n";
         exit(EXIT_FAILURE);
     } 
 
@@ -39,6 +39,11 @@ int main(int argc, char** argv){
     bool validating = false;
     bool reduced_output = false;
     bool standalone = false;
+
+    int origin_device;
+    CCC(cudaGetDevice(&origin_device));
+    int devices;
+    CCC(cudaGetDeviceCount(&devices));
 
     for (int i=0; i<argc; i++) {
         if (strcmp(argv[i], "-v") == 0) {
@@ -50,7 +55,13 @@ int main(int argc, char** argv){
         if (strcmp(argv[i], "-s") == 0) {
             standalone = true;
         }
+        if ((strcmp(argv[i], "-d") == 0 ) && (i+1<argc)) {
+            devices = atoi(argv[i+1]);
+        }
     }
+
+    print_device_info(devices);
+    initialise_hardware();
 
     unsigned long int datasize_bytes = (unsigned long int)((array_len*2*sizeof(array_type)));
     unsigned long int operations = (unsigned long int)array_len;
@@ -68,11 +79,6 @@ int main(int argc, char** argv){
     if (standalone) {
         std::cout << "Creating new datasets for each run\n";
     }
-
-    int origin_device;
-    CCC(cudaGetDevice(&origin_device));
-    int device_count;
-    CCC(cudaGetDeviceCount(&device_count));
 
     array_type* input_array;
     array_type* output_array;
@@ -97,9 +103,6 @@ int main(int argc, char** argv){
     init_sparse_array(input_array, array_len, 10000);
 
     float* timing_ms = (float*)calloc(runs, sizeof(float));
-
-    initialise_hardware();
-    check_device_count();
 
     { // Get CPU baseline
         std::cout << "Getting CPU baseline\n";
@@ -188,7 +191,7 @@ int main(int argc, char** argv){
         }
 
         multiGpuMapping<PlusX<array_type>>(
-            input_array, constant, output_array, array_len
+            input_array, constant, output_array, array_len, devices
         );
 
         if (standalone) {
@@ -204,7 +207,7 @@ int main(int argc, char** argv){
             }
 
             timing_ms[run] = multiGpuMapping<PlusX<array_type>>(
-                input_array, constant, output_array, array_len
+                input_array, constant, output_array, array_len, devices
             );
 
             if (reduced_output == false) {
@@ -240,9 +243,9 @@ int main(int argc, char** argv){
         std::cout << "\nBenchmarking multi GPU w/ Steams map **************\n";
 
         cudaStream_t* streams = (cudaStream_t*)calloc(
-            device_count, sizeof(cudaStream_t)
+            devices, sizeof(cudaStream_t)
         );
-        for (int device=0; device<device_count; device++) {
+        for (int device=0; device<devices; device++) {
             CCC(cudaSetDevice(device));
             cudaStreamCreate(&streams[device]);
         }
@@ -258,7 +261,7 @@ int main(int argc, char** argv){
 
         multiGpuStreamMapping<PlusX<array_type>>(
             input_array, constant, output_array, array_len, streams, 
-            device_count
+            devices
         );
 
         if (standalone) {
@@ -275,7 +278,7 @@ int main(int argc, char** argv){
 
             timing_ms[run] = multiGpuStreamMapping<PlusX<array_type>>(
                 input_array, constant, output_array, array_len, streams, 
-                device_count
+                devices
             );
 
             if (reduced_output == false) {
@@ -312,11 +315,6 @@ int main(int argc, char** argv){
     { // Benchmark multiple GPUs with hints
         std::cout << "\nBenchmarking multi GPU map with hints *************\n";
 
-        int origin_device;
-        CCC(cudaGetDevice(&origin_device));
-        int device_count;
-        CCC(cudaGetDeviceCount(&device_count));
-
         if (standalone) {
             CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
             CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
@@ -325,7 +323,7 @@ int main(int argc, char** argv){
 
         std::cout << "  Running a warmup\n";
         multiGpuMapping<PlusX<array_type>>(
-            input_array, constant, output_array, array_len, true
+            input_array, constant, output_array, array_len, devices, true
         );
 
         if (standalone) {
@@ -341,7 +339,7 @@ int main(int argc, char** argv){
             }
 
             timing_ms[run] = multiGpuMapping<PlusX<array_type>>(
-                input_array, constant, output_array, array_len, true
+                input_array, constant, output_array, array_len, devices, true
             );
 
             if (reduced_output == false) {
