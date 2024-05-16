@@ -1,6 +1,7 @@
 #include <sys/time.h>
 #include <limits>
 
+#include "matmul/cannon.h"
 #include "matmul/cpu.h"
 #include "matmul/tiled.h"
 #include "shared_cuda.cu.h"
@@ -239,8 +240,8 @@ int main(int argc, char** argv){
         timing_stat("tiled multi GPU split w/ prefetch", operations, datasize_bytes);
     struct timing_stat tiled_multi_gpu_split_malloc_time = 
         timing_stat("tiled multi GPU split w/ malloc", operations, datasize_bytes);    
-    struct timing_stat recursive_single_gpu_time = 
-        timing_stat("recursive single GPU", operations, datasize_bytes);
+    struct timing_stat cannon_single_gpu_time = 
+        timing_stat("cannon single GPU", operations, datasize_bytes);
     const struct timing_stat* all_timings[] = {
         &cpu_time,
         &tiled_single_gpu_time,
@@ -254,7 +255,7 @@ int main(int argc, char** argv){
         &tiled_multi_gpu_split_hint_time,
         &tiled_multi_gpu_split_prefetch_time,
         &tiled_multi_gpu_split_malloc_time,
-        &recursive_single_gpu_time
+        &cannon_single_gpu_time
     };
     int timings = sizeof(all_timings)/sizeof(all_timings[0]);
 
@@ -1034,5 +1035,61 @@ int main(int argc, char** argv){
         update_and_print_timing_stats(
             timing_ms, runs, &tiled_multi_gpu_split_malloc_time, all_timings, timings
         );
+    }
+
+    if ((widthA != heightA) || (widthA != widthB) || (widthA != heightB)) {
+        std::cout << "Cannot run cannon algorithm for uneven matrix sizes\n";
+    }
+    else {
+        if (true) { // Benchmark cannon single GPU
+            std::cout << "\nBenchmarking cannon single GPU *****\n";
+
+            std::cout << "  Running a warmup\n";
+
+            if (standalone) {
+                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
+            }
+
+            cannon::singleGPU<array_type>(
+                matrixA, matrixB, matrixC, widthA
+            );
+
+            if (standalone) {
+                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            }
+
+            for (int run=0; run<runs; run++) {
+                if (standalone) {
+                    setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
+                }
+
+                timing_ms[run] = cannon::singleGPU<array_type>(
+                    matrixA, matrixB, matrixC, widthA
+                );
+
+
+                if (reduced_output == false) {
+                    print_loop_feedback(run, runs);
+                }
+
+                // do this at the end as reading output array will shift it back to 
+                // the host. Just use datasize_GB as crude tolerance for now.
+                if ((validating) && (run==runs-1)) {
+                    validate(
+                        &matrixA, widthA, heightA, 
+                        &matrixB, widthB, heightB, 
+                        &matrixC, datasize_bytes/1e9
+                    );
+                }
+
+                if (standalone) {
+                    free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                }
+            }
+
+            update_and_print_timing_stats(
+                timing_ms, runs, &cannon_single_gpu_time, all_timings, timings
+            );
+        }        
     }
 }

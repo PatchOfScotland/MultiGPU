@@ -17,6 +17,6 @@ for i in "32 1GFLOPS" \
 do
     set -- $i
     echo "Benchmarking Matrix Multiplication $2"
-    ./build/matmul 4096 $1 4096 $REPEATS -v -r > ./results/matmul_$2.out
-    ./build/matmul 4096 $1 4096 $REPEATS -v -r -s > ./results/matmul-no-repeat_$2.out
+    ./build/matmul 4096 $1 4096 $REPEATS -r > ./results/matmul_$2.out
+    ./build/matmul 4096 $1 4096 $REPEATS -r -s > ./results/matmul-no-repeat_$2.out
 done

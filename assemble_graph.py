@@ -24,9 +24,14 @@ for result_file_name in result_files:
                     results[method][experiment] = {}
                 if size not in results[method][experiment]:
                     results[method][experiment][size] = 0
-            if line.startswith("    Throughput:    "):
-                throughput = float(line.replace("    Throughput:    ", "").replace("GB/sec\n", ""))
-                results[method][experiment][size] = throughput
+            if "matmul" in method:
+                if line.startswith("    GLFOPS:        "):
+                    gflops = float(line.replace("    GLFOPS:        ", "").replace("/sec\n", ""))
+                    results[method][experiment][size] = gflops
+            else:
+                if line.startswith("    Throughput:    "):
+                    throughput = float(line.replace("    Throughput:    ", "").replace("GB/sec\n", ""))
+                    results[method][experiment][size] = throughput
 
 for method, experiments in results.items():
 
@@ -38,7 +43,10 @@ for method, experiments in results.items():
 
         plt.plot(x, y, label=experiment)
     plt.xlabel("data size (bytes)")
-    plt.ylabel("Throughput (GB/s)")
+    if "matmul" in method:
+        plt.ylabel("GFLOPS")
+    else:
+        plt.ylabel("Throughput (GB/s)")
     plt.title(f"{method}")
     plt.legend()
     plt.savefig(os.path.join(RESULTS_DIR, f"{method}.png"))  

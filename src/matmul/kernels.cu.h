@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "../shared_cuda.cu.h"
+
 template<int isT, typename T>
 __device__ inline 
 T getElement(
@@ -59,5 +61,45 @@ __global__ void mmmNaiveKernelMulti(
 
     matrixC[i*widthC + j] = accumulator;
 }  
+
+// adapted from https://github.com/vogma/cannon_cuda_compression/blob/main/src/cudaMatrixMultiply.cu
+template <class T> 
+__global__ void mmmCannon(
+    const T *matrixA, const T *matrixB, T *matrixC, const int n
+) {
+  // Allocate shared memory for the two blocks aSub and bSub.
+  // Use two-dimensional matrices of size CANNON_BLOCK * CANNON_BLOCK
+  __shared__ T aSub[CANNON_BLOCK][CANNON_BLOCK];
+  __shared__ T bSub[CANNON_BLOCK][CANNON_BLOCK];
+
+  const int Bx_offset = blockIdx.x * CANNON_BLOCK + threadIdx.x;
+  const int Ay_offset = blockIdx.y * CANNON_BLOCK + threadIdx.y;
+  T tmp = 0;
+  /* Go */
+  for (int blocks = 0; blocks < gridDim.x; blocks += 1) {
+    int Ax_offset = threadIdx.x + blocks * CANNON_BLOCK;
+    int By_offset = threadIdx.y + blocks * CANNON_BLOCK;
+
+    if (Ax_offset < n && Ay_offset < n)
+      aSub[threadIdx.y][threadIdx.x] = matrixA[Ax_offset + Ay_offset * n];
+    else
+      aSub[threadIdx.y][threadIdx.x] = 0;
+    if (Bx_offset < n && By_offset < n)
+      bSub[threadIdx.y][threadIdx.x] = matrixB[Bx_offset + By_offset * n];
+    else
+      bSub[threadIdx.y][threadIdx.x] = 0;
+
+    __syncthreads(); // Make sure that all threads had time to read the sub
+                     // matrix.
+
+    for (int i = 0; i < CANNON_BLOCK; i++)
+      tmp += aSub[threadIdx.y][i] * bSub[i][threadIdx.x];
+
+    __syncthreads();
+  }
+  if ((Bx_offset < n) && (Ay_offset < n))
+
+    matrixC[Bx_offset + n * Ay_offset] += tmp;
+}
 
 #endif
