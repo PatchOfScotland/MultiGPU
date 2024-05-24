@@ -1,24 +1,28 @@
 #!/bin/bash
+#SBATCH -p gpu --ntasks=1 --cpus-per-task=1 --mem=8G
+#SBATCH --job-name=BenchReduce4
+#SBATCH -p gpu --gres=gpu:4
+#SBATCH --time=1-00:00:00
 
 REPEATS=$1
 DEVICES=$2
 
+hostname
+echo $CUDA_VISIBLE_DEVICES
+
 ## Reduce
-make reduce
-
-
-for device in $(seq 1 $DEVICES)
+for i in "1000 8KB" \
+         "10000 80KB" \
+         "100000 800KB" \
+         "1000000 8MB" \
+         "10000000 80MB" \
+         "100000000 800MB" \
+         "1000000000 8GB"
 do
-    for i in "250000000 1GB" \
-             "1000000000 4GB" \
-             "2500000000 10GB" \
-             "5000000000 20GB" \
-             "10000000000 40GB" \
-             "20000000000 80GB"
-    do
-        set -- $i
-        echo "Benchmarking Reduce $2 ($device devices)"
-        ./build/reduce $1 $REPEATS -d $device -r > ./results/reduce_${device}_${2}.out
-        ./build/reduce $1 $REPEATS -d $device -r -s > ./results/reduce-no-repeat_${device}_${2}.out
-    done
+    set -- $i
+    echo "Benchmarking Reduce $2 (${DEVICES} devices)"
+    ./build/reduce $1 $REPEATS -d ${DEVICES} -r > ./results/reduce_${DEVICES}_${2}.out
+    ./build/reduce $1 $REPEATS -d ${DEVICES} -r -s > ./results/reduce-no-repeat_${DEVICES}_${2}.out
 done
+
+echo "All tests complete"

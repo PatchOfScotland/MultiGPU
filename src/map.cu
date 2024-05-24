@@ -104,7 +104,7 @@ int main(int argc, char** argv){
 
     float* timing_ms = (float*)calloc(runs, sizeof(float));
 
-    { // Get CPU baseline
+    if (true) { // Get CPU baseline
         std::cout << "Getting CPU baseline\n";
 
         cpu_time.timing_microseconds = cpuMapping<PlusX<array_type>>(
@@ -119,7 +119,7 @@ int main(int argc, char** argv){
         std::cout << "CPU mapping took: " << cpu_time.timing_microseconds / 1e3 << "ms\n";
     }
 
-    { // Benchmark a single GPU
+    if (true) { // Benchmark a single GPU
         std::cout << "\nBenchmarking single GPU map ***********************\n";
 
         std::cout << "  Running a warmup\n";
@@ -179,7 +179,7 @@ int main(int argc, char** argv){
         );
     }
 
-    { // Benchmark multiple GPUs
+    if (true) { // Benchmark multiple GPUs
         std::cout << "\nBenchmarking multi GPU map ************************\n";
 
         std::cout << "  Running a warmup\n";
@@ -239,7 +239,7 @@ int main(int argc, char** argv){
         );
     }
 
-    { // Benchmark multiple GPUs w/ Streams
+    if (true) { // Benchmark multiple GPUs w/ Streams
         std::cout << "\nBenchmarking multi GPU w/ Steams map **************\n";
 
         cudaStream_t* streams = (cudaStream_t*)calloc(
@@ -312,7 +312,7 @@ int main(int argc, char** argv){
         free(streams);
     }
 
-    { // Benchmark multiple GPUs with hints
+    if (true) { // Benchmark multiple GPUs with hints
         std::cout << "\nBenchmarking multi GPU map with hints *************\n";
 
         if (standalone) {

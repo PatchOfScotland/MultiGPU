@@ -1,23 +1,29 @@
 #!/bin/bash
+#SBATCH -p gpu --ntasks=1 --cpus-per-task=1 --mem=8G
+#SBATCH --job-name=BenchMatmul4
+#SBATCH -p gpu --gres=gpu:4
+#SBATCH --time=1-00:00:00
 
 REPEATS=$1
 DEVICES=$2
 
-## Map
-make matmul
+hostname
+echo $CUDA_VISIBLE_DEVICES
 
-for device in $(seq 1 $DEVICES)
+## Map
+for i in "1024 2GFLOPS" \
+         "2048 17GFLOPS" \
+         "3072 77GFLOPS" \
+         "4096 137GFLOPS" \
+         "5120 268GFLOPS" \
+         "6144 463GFLOPS" \
+         "7168 736GFLOPS" \
+         "8192 1099GFLOPS"
 do
-    for i in "32 1GFLOPS" \
-             "2048 68GFLOPS" \
-             "4096 137GFLOPS" \
-             "8192 274GFLOPS" \
-             "16384 549GFLOPS" \
-             "32768 1099GFLOPS"
-    do
-        set -- $i
-        echo "Benchmarking Matrix Multiplication $2 ($device devices)"
-        ./build/matmul 4096 $1 4096 $REPEATS -d $device -r > ./results/matmul_${device}_${2}.out
-        ./build/matmul 4096 $1 4096 $REPEATS -d $device -r -s > ./results/matmul-no-repeat_${device}_${2}.out
-    done
+    set -- $i
+    echo "Benchmarking Matrix Multiplication $2 (${DEVICES} devices)"
+    ./build/matmul $1 $1 $1 $REPEATS -d ${DEVICES} -r > ./results/matmul_${DEVICES}_${2}.out
+    ./build/matmul $1 $1 $1 $REPEATS -d ${DEVICES} -r -s > ./results/matmul-no-repeat_${DEVICES}_${2}.out
 done
+
+echo "All tests complete"

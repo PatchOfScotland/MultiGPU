@@ -1,23 +1,26 @@
 FLAGS=-Xcompiler -fopenmp -O3 -arch=native
+FLAGS_HENDRIX=-Xcompiler -fopenmp -O3
 PROGRAMS=map reduce matmul
 
 all: $(PROGRAMS)
 
 map: 
 	mkdir -p build
-	nvcc src/map.cu -o $^ build/map $(FLAGS)
+	nvcc src/map.cu -o $^ build/map $(FLAGS_HENDRIX)
 
 reduce: 
 	mkdir -p build
-	nvcc src/reduce.cu -o $^ build/reduce $(FLAGS)
+	nvcc src/reduce.cu -o $^ build/reduce $(FLAGS_HENDRIX)
 
 matmul:
 	mkdir -p build
-	nvcc src/matmul.cu -o $^ build/matmul $(FLAGS)
+	nvcc src/matmul.cu -o $^ build/matmul $(FLAGS_HENDRIX)
 
-tiled_scan:
+hendrix:
 	mkdir -p build
-	nvcc src/tiled_scan.cu -o $^ build/tiled_scan $(FLAGS)
+	nvcc src/map.cu -o $^ build/map $(FLAGS_HENDRIX)
+	nvcc src/reduce.cu -o $^ build/reduce $(FLAGS_HENDRIX)
+	nvcc src/matmul.cu -o $^ build/matmul $(FLAGS_HENDRIX)
 
 map_bench:
 	make map
