@@ -282,12 +282,14 @@ int main(int argc, char** argv){
             free_ABC_managed(&matrixA, &matrixB, &matrixC);
         }
 
-        //std::cout << "Input A: \n";
-        //print_matrix(matrixA, widthA, heightA);
-        //std::cout << "Input B: \n";
-        //print_matrix(matrixB, widthB, heightB);
-        //std::cout << "Result: \n";
-        //print_matrix(matrixC, widthC, heightC);
+        if (false) {
+            std::cout << "Input A: \n";
+            print_matrix(matrixA, widthA, heightA);
+            std::cout << "Input B: \n";
+            print_matrix(matrixB, widthB, heightB);
+            std::cout << "Result: \n";
+            print_matrix(matrixC, widthC, heightC);
+        }
 
         std::cout << "CPU matrix multiplication took: " << cpu_time.timing_microseconds / 1e3 << "ms\n";
         std::cout << "CPU throughput:     " << cpu_time.throughput_gb() << "GB/sec\n";
@@ -405,7 +407,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (true) { // Benchmark a tiled multi GPU raw w/ hints
+    if (false) { // Benchmark a tiled multi GPU raw w/ hints
         std::cout << "\nBenchmarking tiled multi GPU raw w/ hints *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -461,7 +463,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (true) { // Benchmark a tiled multi GPU raw w/ prefetch
+    if (false) { // Benchmark a tiled multi GPU raw w/ prefetch
         std::cout << "\nBenchmarking tiled multi GPU raw w/ prefetch *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -517,7 +519,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (true) { // Benchmark a tiled multi GPU duplicate B
+    if (false) { // Benchmark a tiled multi GPU duplicate B
         std::cout << "\nBenchmarking tiled multi GPU duplicate B *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -582,7 +584,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (true) { // Benchmark a tiled multi GPU duplicate B w/ hints
+    if (false) { // Benchmark a tiled multi GPU duplicate B w/ hints
         std::cout << "\nBenchmarking tiled multi GPU duplicate B w/ hints *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -647,7 +649,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (true) { // Benchmark a tiled multi GPU duplicate B w/ prefetch
+    if (false) { // Benchmark a tiled multi GPU duplicate B w/ prefetch
         std::cout << "\nBenchmarking tiled multi GPU duplicate B w/ prefetch *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -712,7 +714,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (true) { // Benchmark a tiled multi GPU split
+    if (false) { // Benchmark a tiled multi GPU split
         std::cout << "\nBenchmarking tiled multi GPU split *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -794,7 +796,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (true) { // Benchmark a tiled multi GPU split w/ hints
+    if (false) { // Benchmark a tiled multi GPU split w/ hints
         std::cout << "\nBenchmarking tiled multi GPU split w/ hints *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -876,7 +878,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (true) { // Benchmark a tiled multi GPU split w/ prefetch
+    if (false) { // Benchmark a tiled multi GPU split w/ prefetch
         std::cout << "\nBenchmarking tiled multi GPU split w/ prefetch *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -958,7 +960,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (true) { // Benchmark a tiled multi GPU split w/ malloc
+    if (false) { // Benchmark a tiled multi GPU split w/ malloc
         std::cout << "\nBenchmarking tiled multi GPU split w/ malloc *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -1084,6 +1086,14 @@ int main(int argc, char** argv){
                         &matrixB, widthB, heightB, 
                         &matrixC, datasize_bytes/1e9
                     );
+                    if (false) {
+                        std::cout << "Input A: \n";
+                        print_matrix(matrixA, widthA, heightA);
+                        std::cout << "Input B: \n";
+                        print_matrix(matrixB, widthB, heightB);
+                        std::cout << "Result: \n";
+                        print_matrix(matrixC, widthC, heightC);
+                    }
                 }
 
                 if (standalone) {

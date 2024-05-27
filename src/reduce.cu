@@ -153,7 +153,7 @@ int main(int argc, char** argv){
 
     float* timing_ms = (float*)calloc(runs, sizeof(float));
 
-    { // Get CPU baseline
+    if (true) { // Get CPU baseline
         std::cout << "Getting CPU result\n";
 
         cpu_time.timing_microseconds = cpuReduction<Add<array_type,return_type>>(
@@ -169,7 +169,7 @@ int main(int argc, char** argv){
         std::cout << "CPU throughput:     " << cpu_time.throughput_gb() << "GB/sec\n";
     }
 
-    { // Benchmark commutative single GPU
+    if (true) { // Benchmark commutative single GPU
         std::cout << "\nBenchmarking commutative single GPU reduce ********\n";
 
         std::cout << "  Running a warmup\n";
@@ -238,7 +238,7 @@ int main(int argc, char** argv){
         );
     }
 
-    { // Benchmark commutative multi GPU
+    if (true) { // Benchmark commutative multi GPU
         std::cout << "\nBenchmarking commutative multi GPU reduce *********\n";
 
         if (standalone) {
@@ -305,7 +305,7 @@ int main(int argc, char** argv){
         );
     }
 
-    { // Benchmark commutative multi GPU with hints
+    if (true) { // Benchmark commutative multi GPU with hints
         std::cout << "\nBenchmarking commutative multi GPU reduce with hints\n";
 
         if (standalone) {
@@ -373,7 +373,7 @@ int main(int argc, char** argv){
         );
     }
 
-    { // Benchmark associative single GPU
+    if (true) { // Benchmark associative single GPU
         std::cout << "\nBenchmarking associative single GPU reduce ****\n";
 
 
@@ -442,7 +442,7 @@ int main(int argc, char** argv){
         );
     }
 
-    { // Benchmark associative multi GPU
+    if (true) { // Benchmark associative multi GPU
         std::cout << "\nBenchmarking associative multi GPU reduce *****\n";
         if (standalone) {
             CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
@@ -509,7 +509,7 @@ int main(int argc, char** argv){
         );
     }
 
-    { // Benchmark associative multi GPU with hints
+    if (true) { // Benchmark associative multi GPU with hints
         std::cout << "\nBenchmarking associative multi GPU reduce with hints\n";
 
         if (standalone) {

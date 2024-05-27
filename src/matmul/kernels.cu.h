@@ -68,13 +68,13 @@ __global__ void mmmCannon(
     const T *matrixA, const T *matrixB, T *matrixC, const int n
 ) {
   // Allocate shared memory for the two blocks aSub and bSub.
-  // Use two-dimensional matrices of size CANNON_BLOCK * CANNON_BLOCK
-  __shared__ T aSub[CANNON_BLOCK][CANNON_BLOCK];
-  __shared__ T bSub[CANNON_BLOCK][CANNON_BLOCK];
+  // Use two-dimensional matrices of size BLOCK_SIZE * BLOCK_SIZE
+  __shared__ double aSub[CANNON_BLOCK][CANNON_BLOCK];
+  __shared__ double bSub[CANNON_BLOCK][CANNON_BLOCK];
 
   const int Bx_offset = blockIdx.x * CANNON_BLOCK + threadIdx.x;
   const int Ay_offset = blockIdx.y * CANNON_BLOCK + threadIdx.y;
-  T tmp = 0;
+  double tmp = 0;
   /* Go */
   for (int blocks = 0; blocks < gridDim.x; blocks += 1) {
     int Ax_offset = threadIdx.x + blocks * CANNON_BLOCK;
@@ -99,7 +99,7 @@ __global__ void mmmCannon(
   }
   if ((Bx_offset < n) && (Ay_offset < n))
 
-    matrixC[Bx_offset + n * Ay_offset] += tmp;
+    matrixC[Bx_offset + n * Ay_offset] = tmp;
 }
 
 #endif

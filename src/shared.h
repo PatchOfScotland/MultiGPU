@@ -71,7 +71,7 @@ void init_sparse_array(float* arr, unsigned long int array_len, int n) {
 template<class T>
 void init_matrix(T* data, uint64_t size) {
     for (uint64_t i = 0; i < size; i++)
-        data[i] = rand() / (T)RAND_MAX;
+        data[i] = 1;//rand() / (T)RAND_MAX;
 }
 
 template<class T>
