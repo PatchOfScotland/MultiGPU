@@ -282,7 +282,7 @@ int main(int argc, char** argv){
             free_ABC_managed(&matrixA, &matrixB, &matrixC);
         }
 
-        if (false) {
+        if (true) {
             std::cout << "Input A: \n";
             print_matrix(matrixA, widthA, heightA);
             std::cout << "Input B: \n";
@@ -407,7 +407,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (false) { // Benchmark a tiled multi GPU raw w/ hints
+    if (true) { // Benchmark a tiled multi GPU raw w/ hints
         std::cout << "\nBenchmarking tiled multi GPU raw w/ hints *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -463,7 +463,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (false) { // Benchmark a tiled multi GPU raw w/ prefetch
+    if (true) { // Benchmark a tiled multi GPU raw w/ prefetch
         std::cout << "\nBenchmarking tiled multi GPU raw w/ prefetch *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -519,7 +519,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (false) { // Benchmark a tiled multi GPU duplicate B
+    if (true) { // Benchmark a tiled multi GPU duplicate B
         std::cout << "\nBenchmarking tiled multi GPU duplicate B *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -584,7 +584,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (false) { // Benchmark a tiled multi GPU duplicate B w/ hints
+    if (true) { // Benchmark a tiled multi GPU duplicate B w/ hints
         std::cout << "\nBenchmarking tiled multi GPU duplicate B w/ hints *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -649,7 +649,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (false) { // Benchmark a tiled multi GPU duplicate B w/ prefetch
+    if (true) { // Benchmark a tiled multi GPU duplicate B w/ prefetch
         std::cout << "\nBenchmarking tiled multi GPU duplicate B w/ prefetch *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -714,7 +714,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (false) { // Benchmark a tiled multi GPU split
+    if (true) { // Benchmark a tiled multi GPU split
         std::cout << "\nBenchmarking tiled multi GPU split *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -796,7 +796,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (false) { // Benchmark a tiled multi GPU split w/ hints
+    if (true) { // Benchmark a tiled multi GPU split w/ hints
         std::cout << "\nBenchmarking tiled multi GPU split w/ hints *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -878,7 +878,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (false) { // Benchmark a tiled multi GPU split w/ prefetch
+    if (true) { // Benchmark a tiled multi GPU split w/ prefetch
         std::cout << "\nBenchmarking tiled multi GPU split w/ prefetch *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -960,7 +960,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (false) { // Benchmark a tiled multi GPU split w/ malloc
+    if (true) { // Benchmark a tiled multi GPU split w/ malloc
         std::cout << "\nBenchmarking tiled multi GPU split w/ malloc *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -1087,12 +1087,12 @@ int main(int argc, char** argv){
                         &matrixC, datasize_bytes/1e9
                     );
                     if (false) {
-                        std::cout << "Input A: \n";
-                        print_matrix(matrixA, widthA, heightA);
-                        std::cout << "Input B: \n";
-                        print_matrix(matrixB, widthB, heightB);
-                        std::cout << "Result: \n";
-                        print_matrix(matrixC, widthC, heightC);
+                    std::cout << "Input A: \n";
+                    print_matrix(matrixA, widthA, heightA);
+                    std::cout << "Input B: \n";
+                    print_matrix(matrixB, widthB, heightB);
+                    std::cout << "Result: \n";
+                    print_matrix(matrixC, widthC, heightC);
                     }
                 }
 
