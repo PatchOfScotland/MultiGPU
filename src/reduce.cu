@@ -129,23 +129,8 @@ int main(int argc, char** argv){
     return_type* output;
     return_type validation_result;
 
-    struct timing_stat cpu_time = timing_stat("CPU", operations, datasize_bytes);
-    struct timing_stat commutative_single_gpu_time = timing_stat("commutative single GPU", operations, datasize_bytes);
-    struct timing_stat commutative_multi_gpu_time = timing_stat("commutative multi GPU", operations, datasize_bytes);
-    struct timing_stat commutative_hint_gpu_time = timing_stat("commutative multi GPU with hints", operations, datasize_bytes);
-    struct timing_stat associative_single_gpu_time = timing_stat("associative single GPU", operations, datasize_bytes);
-    struct timing_stat associative_multi_gpu_time = timing_stat("associative multi GPU", operations, datasize_bytes);
-    struct timing_stat associative_hint_gpu_time = timing_stat("associative multi GPU with hints", operations, datasize_bytes);
-    const struct timing_stat* all_timings[] = {
-        &cpu_time,
-        &commutative_single_gpu_time,
-        &commutative_multi_gpu_time,
-        &commutative_hint_gpu_time,
-        &associative_single_gpu_time,
-        &associative_multi_gpu_time,
-        &associative_hint_gpu_time
-    };
-    int timings = sizeof(all_timings)/sizeof(all_timings[0]);
+    int timings = 0;
+    struct timing_stat* all_timings = NULL;
 
     CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
     CCC(cudaMallocManaged(&output, sizeof(return_type)));
@@ -156,14 +141,22 @@ int main(int argc, char** argv){
     if (true) { // Get CPU baseline
         std::cout << "Getting CPU result\n";
 
+        struct timing_stat cpu_time =  
+            timing_stat("CPU", operations, datasize_bytes);
         cpu_time.timing_microseconds = cpuReduction<Add<array_type,return_type>>(
             input_array, &validation_result, array_len
         );
+        timing_ms[0] = cpu_time.timing_microseconds;  
 
         if (standalone) {
             CCC(cudaFree(input_array));
             CCC(cudaFree(output));
         }
+
+        update_timing_stats(
+            timing_ms, 1, "CPU\0", &all_timings, &timings, operations, 
+            datasize_bytes
+        );
 
         std::cout << "CPU reduction took: " << cpu_time.timing_microseconds / 1e3 << "ms\n";
         std::cout << "CPU throughput:     " << cpu_time.throughput_gb() << "GB/sec\n";
@@ -234,7 +227,8 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, &commutative_single_gpu_time, all_timings, timings
+            timing_ms, runs, "commutative single GPU", &all_timings, 
+            &timings, operations, datasize_bytes
         );
     }
 
@@ -301,7 +295,8 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, &commutative_multi_gpu_time, all_timings, timings
+            timing_ms, runs, "commutative multi GPU", &all_timings, 
+            &timings, operations, datasize_bytes
         );
     }
 
@@ -369,7 +364,8 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, &commutative_hint_gpu_time, all_timings, timings
+            timing_ms, runs, "commutative hint GPU", &all_timings, 
+            &timings, operations, datasize_bytes
         );
     }
 
@@ -438,7 +434,8 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, &associative_single_gpu_time, all_timings, timings
+            timing_ms, runs, "associative single GPU", &all_timings, 
+            &timings, operations, datasize_bytes
         );
     }
 
@@ -505,7 +502,8 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, &associative_multi_gpu_time, all_timings, timings
+            timing_ms, runs, "associative multi GPU", &all_timings, 
+            &timings, operations, datasize_bytes
         );
     }
 
@@ -572,7 +570,8 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, &associative_hint_gpu_time, all_timings, timings
+            timing_ms, runs, "associative hint GPU", &all_timings, 
+            &timings, operations, datasize_bytes
         );
     }
 

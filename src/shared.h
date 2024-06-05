@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <iomanip>
+#include <string>
 #include <thread>
 
 #define NO_HINTS            0
@@ -27,14 +28,14 @@ float get_flops(float timing_microseconds, long int operations) {
     return (float)giga_operations / timing_seconds;
 }
 
-struct timing_stat {
+typedef struct timing_stat {
     float timing_microseconds;
     unsigned long int flops;
     unsigned long int datasize_bytes;
-    std::string type;
+    const char* type;
 
     timing_stat(
-        std::string type, 
+        const char* type, 
         long int flops, 
         long int datasize_bytes
     ): type(type), 
@@ -51,7 +52,7 @@ struct timing_stat {
     float throughput_gf() {
         return get_flops(timing_microseconds, flops);
     }
-};
+} timing_stat;
 
 void init_array(float* arr, unsigned long int array_len) {
     srand(5454);
@@ -71,7 +72,7 @@ void init_sparse_array(float* arr, unsigned long int array_len, int n) {
 template<class T>
 void init_matrix(T* data, uint64_t size) {
     for (uint64_t i = 0; i < size; i++)
-        data[i] = 1;//rand() / (T)RAND_MAX;
+        data[i] = rand() / (T)RAND_MAX;
 }
 
 template<class T>
@@ -87,6 +88,33 @@ void transpose_matrix(T* input, size_t width, size_t height, T* output) {
     for (int w=0; w<width; w++) {
         for (int h=0; h<height; h++) {
             output[w*height + h] = input[h*width + w];
+        }
+    }
+}
+
+template<class T, int PageSize, int Split>
+void z_order(T* input,  T* output, size_t x, size_t y, size_t width, size_t height) {
+
+    int tileCountX = width/PageSize;
+    int tileCountY = height/PageSize;
+    
+    #pragma omp parallel for collapse(4)
+    for (int tileX=0; tileX<tileCountX; tileX++) {
+        for (int tileY=0; tileY<tileCountY; tileY++) {
+            for (int tileInnerX=0; tileInnerX<PageSize; tileInnerX++) {
+                for (int tileInnerY=0; tileInnerY<PageSize; tileInnerY++) {
+
+                    int input_offset = tileInnerY // offset within each tile for its X index
+                         + PageSize*tileInnerX // offset within each tile for its Y index
+                         + tileX*PageSize*PageSize  // offset for each tile in X direction
+                         + tileY*PageSize*width;
+                    int output_offset = tileInnerY // offset within each tile for its X index
+                        + width*tileInnerX // offset within each tile for its Y index
+                        + PageSize*tileX // offset for each tile in X direction
+                        + tileY*PageSize*width; // offset for each tile in Y direction
+                    output[output_offset] = input[input_offset];
+                }
+            }
         }
     }
 }
@@ -143,10 +171,30 @@ void print_matrix(T* matrix, size_t width, size_t height) {
     }
 }
 
-void update_and_print_timing_stats(
-    float* timing_array, size_t array_len, timing_stat* to_update, 
-    const timing_stat* all_timings[], int timings
+void _update_and_print_timing_stats(
+    float* timing_array, size_t array_len, const char* title, 
+    timing_stat** all_timings_ptr, int* timings, 
+    unsigned long int operations, unsigned long int datasize_bytes, bool print
 ) {
+    if (*timings == 0) {
+        int malloc_size = (*timings+1)*sizeof(timing_stat);
+        *all_timings_ptr = (timing_stat*)malloc(malloc_size);
+    }
+    else {
+        timing_stat* all_timings_copy = *all_timings_ptr;
+        int malloc_size = (*timings+1)*sizeof(timing_stat);
+        *all_timings_ptr = (timing_stat*)realloc(*all_timings_ptr, malloc_size);
+        if (*all_timings_ptr == NULL) {
+            printf("Realloc failed\n");
+            free(all_timings_copy);
+            exit(1);
+        }
+    }
+    timing_stat* all_timings = *all_timings_ptr;
+    
+    struct timing_stat to_update = 
+        timing_stat(title, operations, datasize_bytes);
+
     float mean_ms = 0;
     float min = timing_array[0];
     float max = timing_array[0];
@@ -163,27 +211,56 @@ void update_and_print_timing_stats(
     }
     mean_ms = total/array_len;
 
-    float gigabytes_per_second = get_throughput(mean_ms, to_update->datasize_bytes);
-    float gigaflops_per_second = get_flops(mean_ms, to_update->flops);
-    std::cout << "    Total runtime: " << total <<"ms\n";
-    std::cout << "    Min runtime:   " << min <<"ms\n";
-    std::cout << "    Max runtime:   " << max <<"ms\n";
-    std::cout << "    Mean runtime:  " << mean_ms <<"ms\n";
-    std::cout << "    Throughput:    " << gigabytes_per_second <<"GB/sec\n";
-    std::cout << "    GLFOPS:        " << gigaflops_per_second <<"/sec\n";
-    
-    for (int i=0; i<timings; i++) {
-        struct timing_stat timing = *all_timings[i];
-        if (timing.timing_microseconds != -1) {
-            std::cout << "      Speedup vs "
-                      << timing.type 
-                      << ": x" 
-                      << timing.timing_microseconds / mean_ms
-                      << "\n";
+    if (print) {
+        float gigabytes_per_second = get_throughput(mean_ms, to_update.datasize_bytes);
+        float gigaflops_per_second = get_flops(mean_ms, to_update.flops);
+        std::cout << "    Total runtime: " << total <<"ms\n";
+        std::cout << "    Min runtime:   " << min <<"ms\n";
+        std::cout << "    Max runtime:   " << max <<"ms\n";
+        std::cout << "    Mean runtime:  " << mean_ms <<"ms\n";
+        std::cout << "    Throughput:    " << gigabytes_per_second <<"GB/sec\n";
+        std::cout << "    GLFOPS:        " << gigaflops_per_second <<"/sec\n";
 
+        for (int i=0; i<*timings; i++) {
+            struct timing_stat timing = all_timings[i];
+            if (timing.timing_microseconds != -1) {
+                std::cout << "      Speedup vs "
+                          << timing.type 
+                          << ": x" 
+                          << timing.timing_microseconds / mean_ms
+                          << "\n";
+            }
         }
     }
-    to_update->timing_microseconds = mean_ms;
+    to_update.timing_microseconds = mean_ms;   
+    memcpy(&all_timings[*timings].timing_microseconds, &to_update.timing_microseconds, sizeof(to_update.timing_microseconds));
+    memcpy(&all_timings[*timings].flops, &to_update.flops, sizeof(to_update.flops));
+    memcpy(&all_timings[*timings].datasize_bytes, &to_update.datasize_bytes, sizeof(to_update.datasize_bytes));
+    memcpy(&all_timings[*timings].type, &to_update.type, sizeof(to_update.type));
+
+    *timings = *timings + 1;  
+}
+
+void update_timing_stats(
+    float* timing_array, size_t array_len, const char* title, 
+    timing_stat* all_timings[], int* timings, 
+    unsigned long int operations, unsigned long int datasize_bytes
+) {
+    _update_and_print_timing_stats(
+        timing_array, array_len, title, all_timings, timings, operations, 
+        datasize_bytes, false
+    );
+}
+
+void update_and_print_timing_stats(
+    float* timing_array, size_t array_len, const char* title, 
+    timing_stat** all_timings_ptr, int* timings, 
+    unsigned long int operations, unsigned long int datasize_bytes
+) {
+    _update_and_print_timing_stats(
+        timing_array, array_len, title, all_timings_ptr, timings, operations, 
+        datasize_bytes, true
+    );
 }
 
 void print_loop_feedback(int run, int runs) {

@@ -62,6 +62,29 @@ __global__ void mmmNaiveKernelMulti(
     matrixC[i*widthC + j] = accumulator;
 }  
 
+// heightA = widthB
+template <int isTB, class T> 
+__global__ void mmmPageTiledKernel(
+    T* matrixA, int widthA, int heightA, 
+    T* matrixB, int widthB, int heightB, 
+    T* matrixC, int widthC, int heightC, 
+    int device
+) { 
+    int x = blockIdx.x*blockDim.x + threadIdx.x;
+    int y = blockIdx.y*blockDim.y + threadIdx.y;
+
+    if( (x >= widthC) || (y >= heightC) ) return;
+
+    T accumulator = 0.0f;
+    for(int k = 0; k < widthA; k ++) {
+        T a = getElement<false, T>(y, k, matrixA, widthA, heightA);
+        T b = getElement<isTB, T>(k, x, matrixB, widthB, heightB);
+        accumulator += a*b;
+    }
+
+    matrixC[y*widthC + x] = accumulator;
+}
+
 // adapted from https://github.com/vogma/cannon_cuda_compression/blob/main/src/cudaMatrixMultiply.cu
 template <class T> 
 __global__ void mmmCannon(

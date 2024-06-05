@@ -84,19 +84,8 @@ int main(int argc, char** argv){
     array_type* output_array;
     array_type constant = 0.1;
 
-    struct timing_stat cpu_time = timing_stat("CPU", operations, datasize_bytes);
-    struct timing_stat single_gpu_time = timing_stat("single GPU", operations, datasize_bytes);
-    struct timing_stat multi_gpu_time = timing_stat("multi GPU", operations, datasize_bytes);
-    struct timing_stat stream_gpu_time = timing_stat("multi GPU with streams", operations, datasize_bytes);
-    struct timing_stat hint_gpu_time = timing_stat("multi GPU with hints", operations, datasize_bytes);
-    const struct timing_stat* all_timings[] = {
-        &cpu_time,
-        &single_gpu_time,
-        &multi_gpu_time,
-        &stream_gpu_time,
-        &hint_gpu_time
-    };
-    int timings = sizeof(all_timings)/sizeof(all_timings[0]);
+    int timings = 0;
+    struct timing_stat* all_timings = NULL;
 
     CCC(cudaMallocManaged(&input_array, array_len*sizeof(array_type)));
     CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
@@ -107,9 +96,17 @@ int main(int argc, char** argv){
     if (true) { // Get CPU baseline
         std::cout << "Getting CPU baseline\n";
 
+        struct timing_stat cpu_time =  
+            timing_stat("CPU", operations, datasize_bytes);
         cpu_time.timing_microseconds = cpuMapping<PlusX<array_type>>(
             input_array, constant, output_array, array_len
-        );    
+        );  
+        timing_ms[0] = cpu_time.timing_microseconds;  
+
+        update_timing_stats(
+            timing_ms, 1, "CPU\0", &all_timings, &timings, operations, 
+            datasize_bytes
+        );
 
         if (standalone) {
             CCC(cudaFree(input_array));
@@ -175,7 +172,8 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, &single_gpu_time, all_timings, timings
+            timing_ms, runs, "single GPU", &all_timings, &timings, operations, 
+            datasize_bytes
         );
     }
 
@@ -235,7 +233,8 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, &multi_gpu_time, all_timings, timings
+            timing_ms, runs, "multi GPU", &all_timings, &timings, operations, 
+            datasize_bytes
         );
     }
 
@@ -306,7 +305,8 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, &stream_gpu_time, all_timings, timings
+            timing_ms, runs, "stream GPU", &all_timings, &timings, operations, 
+            datasize_bytes
         );
 
         free(streams);
@@ -367,7 +367,8 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, &hint_gpu_time, all_timings, timings
+            timing_ms, runs, "hint GPU", &all_timings, &timings, operations, 
+            datasize_bytes
         );
     }
 

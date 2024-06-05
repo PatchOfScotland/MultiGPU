@@ -19,7 +19,7 @@ const size_t PARALLEL_BLOCKS = 65535;
 const size_t ELEMENTS_PER_THREAD = 12;
 const size_t TILE_SIZE = 16;
 const size_t CANNON_BLOCK = 32;
-
+const size_t PAGE_SIZE = 4096;
 
 uint32_t MAX_HARDWARE_WIDTH;
 uint32_t MAX_SHARED_MEMORY;

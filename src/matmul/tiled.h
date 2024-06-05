@@ -3,66 +3,66 @@
 #include "../shared_cuda.cu.h"
 #include "../shared.h"
 
-template<int isTA, int isTB, typename T, int TL>
-void per_device_management(
-        T* matrixA, unsigned int widthA, unsigned int heightA, 
-        T* matrixB, unsigned int widthB, unsigned int heightB, 
-        T* matrixC, unsigned int widthC, unsigned int per_device_heightC,
-        int device
-) {
-    cudaSetDevice(device);
-
-    T* sub_matrixA = matrixA + (device * per_device_heightC * widthA);
-    T* sub_matrixC = matrixC + (device * per_device_heightC * widthC);
-
-    // setup execution parameters
-    unsigned int dim_x = (widthC + TL - 1) / TL; 
-    unsigned int dim_y = (per_device_heightC + TL - 1) / TL;
-
-    dim3 block(TL, TL, 1);      // blockcount
-    dim3 grid(dim_x, dim_y, 1); // threads per block
-
-    cudaEvent_t sync_event;
-    CCC(cudaEventCreate(&sync_event));
-    mmmNaiveKernelMulti<isTA, isTB, T> <<< grid, block >>>(
-        sub_matrixA, widthA, per_device_heightC,
-        matrixB, widthB, heightB,
-        sub_matrixC, widthC, per_device_heightC,
-        device * per_device_heightC
-    );
-    CCC(cudaEventRecord(sync_event));
-    CCC(cudaEventSynchronize(sync_event));
-}
-
-template<int isTA, int isTB, typename T, int TL>
-void per_device_management_split(
-        T* matrixA, unsigned int widthA, unsigned int heightA, 
-        T* matrixB, unsigned int widthB, unsigned int heightB, 
-        T* matrixC, unsigned int widthC, unsigned int heightC,
-        int device
-) {
-    cudaSetDevice(device);
-
-    // setup execution parameters
-    unsigned int dim_x = (widthC + TL - 1) / TL; 
-    unsigned int dim_y = (heightC + TL - 1) / TL;
-
-    dim3 block(TL, TL, 1);      // blockcount
-    dim3 grid(dim_x, dim_y, 1); // threads per block
-
-    cudaEvent_t sync_event;
-    CCC(cudaEventCreate(&sync_event));
-    mmmNaiveKernelMulti<isTA, isTB, T> <<< grid, block >>>(
-        matrixA, widthA, heightC,
-        matrixB, widthB, heightB,
-        matrixC, widthC, heightC,
-        device * heightC
-    );
-    CCC(cudaEventRecord(sync_event));
-    CCC(cudaEventSynchronize(sync_event));
-}
-
 namespace tiled {
+    template<int isTA, int isTB, typename T, int TL>
+    void per_device_management(
+            T* matrixA, unsigned int widthA, unsigned int heightA, 
+            T* matrixB, unsigned int widthB, unsigned int heightB, 
+            T* matrixC, unsigned int widthC, unsigned int per_device_heightC,
+            int device
+    ) {
+        cudaSetDevice(device);
+    
+        T* sub_matrixA = matrixA + (device * per_device_heightC * widthA);
+        T* sub_matrixC = matrixC + (device * per_device_heightC * widthC);
+    
+        // setup execution parameters
+        unsigned int dim_x = (widthC + TL - 1) / TL; 
+        unsigned int dim_y = (per_device_heightC + TL - 1) / TL;
+    
+        dim3 block(TL, TL, 1);      // blockcount
+        dim3 grid(dim_x, dim_y, 1); // threads per block
+    
+        cudaEvent_t sync_event;
+        CCC(cudaEventCreate(&sync_event));
+        mmmNaiveKernelMulti<isTA, isTB, T> <<< grid, block >>>(
+            sub_matrixA, widthA, per_device_heightC,
+            matrixB, widthB, heightB,
+            sub_matrixC, widthC, per_device_heightC,
+            device * per_device_heightC
+        );
+        CCC(cudaEventRecord(sync_event));
+        CCC(cudaEventSynchronize(sync_event));
+    }
+    
+    template<int isTA, int isTB, typename T, int TL>
+    void per_device_management_split(
+            T* matrixA, unsigned int widthA, unsigned int heightA, 
+            T* matrixB, unsigned int widthB, unsigned int heightB, 
+            T* matrixC, unsigned int widthC, unsigned int heightC,
+            int device
+    ) {
+        cudaSetDevice(device);
+    
+        // setup execution parameters
+        unsigned int dim_x = (widthC + TL - 1) / TL; 
+        unsigned int dim_y = (heightC + TL - 1) / TL;
+    
+        dim3 block(TL, TL, 1);      // blockcount
+        dim3 grid(dim_x, dim_y, 1); // threads per block
+    
+        cudaEvent_t sync_event;
+        CCC(cudaEventCreate(&sync_event));
+        mmmNaiveKernelMulti<isTA, isTB, T> <<< grid, block >>>(
+            matrixA, widthA, heightC,
+            matrixB, widthB, heightB,
+            matrixC, widthC, heightC,
+            device * heightC
+        );
+        CCC(cudaEventRecord(sync_event));
+        CCC(cudaEventSynchronize(sync_event));
+    }
+
     /**
     * Naive kernel, i.e., the only tiling performed is on the grid;
     *   no shared or private memory is used.

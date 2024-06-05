@@ -6,15 +6,19 @@ all: $(PROGRAMS)
 
 map: 
 	mkdir -p build
-	nvcc src/map.cu -o $^ build/map $(FLAGS_HENDRIX)
+	nvcc src/map.cu -o $^ build/map $(FLAGS)
 
 reduce: 
 	mkdir -p build
-	nvcc src/reduce.cu -o $^ build/reduce $(FLAGS_HENDRIX)
+	nvcc src/reduce.cu -o $^ build/reduce $(FLAGS)
 
 matmul:
 	mkdir -p build
-	nvcc src/matmul.cu -o $^ build/matmul $(FLAGS_HENDRIX)
+	nvcc src/matmul.cu -o $^ build/matmul $(FLAGS)
+
+memtest:
+	mkdir -p build
+	nvcc src/memtest.cu -o $^ build/memtest $(FLAGS)
 
 hendrix:
 	mkdir -p build
