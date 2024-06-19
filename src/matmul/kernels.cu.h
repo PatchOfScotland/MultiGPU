@@ -8,7 +8,8 @@
 template<int isT, typename T>
 __device__ inline 
 T getElement(
-    uint32_t i, uint32_t j, T* array, uint32_t width, uint32_t height
+    const uint32_t i, const uint32_t j, const T* array, 
+    const uint32_t width, const uint32_t height
 ) {
     if(isT) {
         return array[j*height + i]; // array[j,i]
@@ -65,10 +66,10 @@ __global__ void mmmNaiveKernelMulti(
 // heightA = widthB
 template <int isTB, class T> 
 __global__ void mmmPageTiledKernel(
-    T* matrixA, int widthA, int heightA, 
-    T* matrixB, int widthB, int heightB, 
-    T* matrixC, int widthC, int heightC, 
-    int device
+    const T* matrixA, const int widthA, const int heightA, 
+    const T* matrixB, const int widthB, const int heightB, 
+    T* matrixC, const int widthC, const int heightC, 
+    const int device
 ) { 
     int x = blockIdx.x*blockDim.x + threadIdx.x;
     int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -83,6 +84,54 @@ __global__ void mmmPageTiledKernel(
     }
 
     matrixC[y*widthC + x] = accumulator;
+}
+
+// heightA = widthB
+template <int isTB, class T, int SM> 
+__global__ void mmmPrefetchPageTiledKernel(
+    const T* matrixA, const int widthA, const int heightA, 
+    const T* matrixB, const int widthB, const int heightB, 
+    T* matrixC, const int widthC, const int heightC, 
+    const int block_x_offset, const int block_y_offset
+) { 
+    int x = blockIdx.x*blockDim.x + threadIdx.x + block_x_offset;
+    int y = blockIdx.y*blockDim.y + threadIdx.y + block_y_offset;
+
+    if (y >= heightC) {
+        x += blockDim.x;
+        y -= heightC;
+    }
+
+    if (x >= widthC) return;
+
+    T accumulator = 0.0f;
+    for(int k = 0; k < widthA; k ++) {
+        T a = getElement<false, T>(y, k, matrixA, widthA, heightA);
+        T b = getElement<isTB, T>(k, x, matrixB, widthB, heightB);
+        accumulator += a*b;
+    }
+
+    matrixC[y*widthC + x] = accumulator;
+}
+
+template <int isTB, class T, int SM> 
+__global__ void mmmPrefetchingKernel(
+    const T* matrixA, T* matrixC, const int widthC, const int heightC,
+    const int block_x_offset, const int block_y_offset
+) { 
+    //int x = blockIdx.x*blockDim.x + threadIdx.x + block_x_offset;
+    int x = block_x_offset;
+    //int y = blockIdx.y*blockDim.y + threadIdx.y + block_y_offset;
+    int y = blockIdx.x*blockDim.x + threadIdx.x + block_y_offset;
+
+    if (y >= heightC) {
+        x += blockDim.x;
+        y -= heightC;
+    }
+
+    if (x >= widthC) return;
+
+    matrixC[y*widthC + x] = matrixA[y*widthC + x];
 }
 
 // adapted from https://github.com/vogma/cannon_cuda_compression/blob/main/src/cudaMatrixMultiply.cu
