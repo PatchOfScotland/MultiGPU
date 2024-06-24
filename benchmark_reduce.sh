@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -p gpu --ntasks=1 --cpus-per-task=1 --mem=8G
-#SBATCH --job-name=BenchReduce4
-#SBATCH -p gpu --gres=gpu:4
+#SBATCH --job-name=BenchReduce8
+#SBATCH -p gpu --gres=gpu:8 -w hendrixgpu03fl
 #SBATCH --time=1-00:00:00
 
 REPEATS=$1

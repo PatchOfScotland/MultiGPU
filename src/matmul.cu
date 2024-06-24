@@ -239,7 +239,7 @@ int main(int argc, char** argv){
 
     float* timing_ms = (float*)calloc(runs, sizeof(float));
 
-    if (true) { // Get CPU baseline
+    if (false) { // Get CPU baseline
         std::cout << "Getting CPU result\n";
 
         struct timing_stat cpu_time =  
@@ -1305,5 +1305,4 @@ int main(int argc, char** argv){
             operations, datasize_bytes
         );
     }
-
 }
