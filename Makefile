@@ -36,3 +36,7 @@ reduce_bench:
 
 clean: 
 	rm -f build/*
+
+sanity_check:
+	mkdir -p build
+	nvcc src/sanity_check.cu -o $^ build/sanity_check $(FLAGS)
