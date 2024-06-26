@@ -49,30 +49,17 @@ void setup_init_managed(
 }
 
 int main(int argc, char** argv){
-    if (argc < 3) {
+    if (argc < 2) {
         std::cout << "Usage: " 
                   << argv[0] 
-                  << " <array n> <benchmark repeats> -d <devices>\n";
+                  << " <array n>\n";
         exit(EXIT_FAILURE);
     } 
  
     const unsigned int array_n = strtoul(argv[1], NULL, 0);
-    //if (array_n > 37550) {
-    //    std::cout << "array_n is too large. Max is 37550\n";
-    //    exit(1);         
-    //}
-    const unsigned int runs = atoi(argv[2]);
 
     int origin_device;
     CCC(cudaGetDevice(&origin_device));
-    int devices;
-    CCC(cudaGetDeviceCount(&devices));
-
-    for (int i=0; i<argc; i++) {
-        if ((strcmp(argv[i], "-d") == 0 ) && (i+1<argc)) {
-            devices = atoi(argv[i+1]);
-        }
-    }
 
     array_type* matrixA = NULL;
     array_type* matrixB = NULL;
@@ -82,9 +69,9 @@ int main(int argc, char** argv){
 
     if (true) {
         std::cout << "Matrix A: \n";
-        print_matrix(matrixA, array_n, array_n);
+        print_matrix(matrixA, 10, 10);
         std::cout << "Matrix B: \n";
-        print_matrix(matrixB, array_n, array_n);
+        print_matrix(matrixB, 10, 10);
     }
 
     int array_len = array_n*array_n;
@@ -107,18 +94,17 @@ int main(int argc, char** argv){
             matrixA, matrixB, array_n, per_dev_n, device*(per_dev_n*array_n)
         );
         CCC(cudaEventRecord(end_events[device]));
-        CCC(cudaEventSynchronize(end_events[device]));
     }
 
     for (int device=0; device<device_count; device++) {
-        //CCC(cudaSetDevice(device));
-        //CCC(cudaEventSynchronize(end_events[device]));
+        CCC(cudaSetDevice(device));
+        CCC(cudaEventSynchronize(end_events[device]));
     }  
 
     if (true) {
         std::cout << "Matrix A: \n";
-        print_matrix(matrixA, array_n, array_n);
+        print_matrix(matrixA, 10, 10);
         std::cout << "Matrix B: \n";
-        print_matrix(matrixB, array_n, array_n);
+        print_matrix(matrixB, 10, 10);
     }
 }
