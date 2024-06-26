@@ -8,10 +8,17 @@ namespace prefetch_page_tiled {
     void per_device_management(
             const T* matrixA, const unsigned int widthA, const unsigned int heightA, 
             const T* matrixB, const unsigned int widthB, const unsigned int heightB, 
-            T* matrixC, const unsigned int widthC, const unsigned int per_device_heightC,
+            T* const matrixC, const unsigned int widthC, const unsigned int per_device_heightC,
             const int device
     ) {
         cudaSetDevice(device);
+
+        cudaError_t cudaError = cudaPeekAtLastError();
+        if (cudaError != cudaSuccess) {
+            std::cout << "CUDA beansed it\n" << cudaError << "\n";
+            std::cout << cudaGetErrorString(cudaError) << "\n";
+            exit(cudaError);
+        }
 
         cudaStream_t processing_stream;
         cudaStream_t loading_stream;
@@ -21,7 +28,7 @@ namespace prefetch_page_tiled {
     
         const T* sub_matrixA = matrixA + (device * per_device_heightC * widthA);
         T* sub_matrixC = matrixC + (device * per_device_heightC * widthC);
-        
+
         unsigned int block_x_offset = 0;
         unsigned int block_y_offset = 0;
 
@@ -36,11 +43,15 @@ namespace prefetch_page_tiled {
         CCC(cudaEventCreate(&sync_event_processing));
         CCC(cudaEventCreate(&sync_event_loading));
 
-        size_t runs = ((blocks_x*per_device_heightC) + SM - 1) / SM;
-        //std::cerr << "device " << device << " is going to run " << blocks_x*per_device_heightC << " blocks and has been told to run " << SM << " at once giving " << runs << " loops\n";
+        cudaEvent_t sync_event;
+        CCC(cudaEventCreate(&sync_event));
 
+        size_t runs = ((blocks_x*per_device_heightC) + SM - 1) / SM;
+        //std::cout << "device " << device << " SM: " << SM << " PageSize: " << PageSize << "\n";
+        //std::cout << "device " << device << " is going to run " << blocks_x*per_device_heightC << " blocks and has been told to run " << SM << " at once giving " << runs << " loops\n";
+        
         for (int run=0; run<runs; run++) {
-            mmmPrefetchPageTiledKernel<isTB, T, SM> <<< blockCount, threadsPerBlock, 0, processing_stream >>>(
+            mmmPrefetchPageTiledKernel<isTB, T> <<< blockCount, threadsPerBlock, 0, processing_stream >>>(
                 sub_matrixA, widthA, heightA,
                 matrixB, widthB, heightB,
                 sub_matrixC, widthC, per_device_heightC,
@@ -53,9 +64,9 @@ namespace prefetch_page_tiled {
                 block_y_offset -= per_device_heightC;
             }
 
-            mmmPrefetchingKernel<isTB, T, SM> <<< 1, SM, 0, loading_stream >>> (
+            mmmPrefetchingKernel<isTB, T> <<< 1, SM, 0, loading_stream >>> (
                 sub_matrixA, sub_matrixC, widthC, per_device_heightC,
-                block_x_offset, block_y_offset
+                block_x_offset, block_y_offset, PageSize
             );
 
             CCC(cudaEventRecord(sync_event_processing, processing_stream));
@@ -64,10 +75,10 @@ namespace prefetch_page_tiled {
             CCC(cudaEventSynchronize(sync_event_loading));
         }
 
-        cudaError_t cudaError = cudaPeekAtLastError();
+        cudaError = cudaPeekAtLastError();
         if (cudaError != cudaSuccess) {
-            std::cerr << "CUDA beansed it\n" << cudaError << "\n";
-            std::cerr << cudaGetErrorString(cudaError) << "\n";
+            std::cout << "CUDA beansed it\n" << cudaError << "\n";
+            std::cout << cudaGetErrorString(cudaError) << "\n";
             exit(cudaError);
         }
 
@@ -79,7 +90,7 @@ namespace prefetch_page_tiled {
     float multiGPU(
         const T* matrixA, const unsigned int widthA, const unsigned int heightA, 
         const T* matrixB, const unsigned int widthB, const unsigned int heightB, 
-        T* matrixC, const unsigned int widthC, const unsigned int heightC,
+        T* const matrixC, const unsigned int widthC, const unsigned int heightC,
         const int device_count
     ) {  
         int origin_device;
@@ -102,7 +113,7 @@ namespace prefetch_page_tiled {
                 device
             );
         }
-
+        
         for (int device=0; device<device_count; device++) {
             threads[device].join();        
         }

@@ -239,7 +239,7 @@ int main(int argc, char** argv){
 
     float* timing_ms = (float*)calloc(runs, sizeof(float));
 
-    if (true) { // Get CPU baseline
+    if (false) { // Get CPU baseline
         std::cout << "Getting CPU result\n";
 
         struct timing_stat cpu_time =  
@@ -274,7 +274,7 @@ int main(int argc, char** argv){
         std::cout << "CPU GFLOPS:         " << cpu_time.throughput_gf() << "ops/sec\n";
     }
 
-    if (true) { // Benchmark a tiled single GPU
+    if (false) { // Benchmark a tiled single GPU
         std::cout << "\nBenchmarking tiled single GPU *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -312,6 +312,22 @@ int main(int argc, char** argv){
             // do this at the end as reading output array will shift it back to 
             // the host. Just use datasize_GB as crude tolerance for now.
             if ((validating) && (run==runs-1)) {
+                if (false) {
+                    std::cout << "Matrix A: \n";
+                    print_matrix(matrixA, widthA, heightA);
+                    std::cout << "Matrix B: \n";
+                    print_matrix(matrixB, widthB, heightB);
+                    std::cout << "Result: \n";
+                    print_matrix(matrixC, widthC, heightC);
+
+                    cpuMatMul<array_type>(
+                        matrixA, widthA, heightA, 
+                        matrixB, widthB, heightB, 
+                        matrixC
+                    );
+                    std::cout << "Reference: \n";
+                    print_matrix(matrixC, widthC, heightC);
+                }
                 validate(
                     &matrixA, widthA, heightA, 
                     &matrixB, widthB, heightB, 
@@ -330,12 +346,12 @@ int main(int argc, char** argv){
         );
     }
 
-    if (true) { // Benchmark a tiled multi GPU raw
+    if (false) { // Benchmark a tiled multi GPU raw
         std::cout << "\nBenchmarking tiled multi GPU raw *****\n";
 
         std::cout << "  Running a warmup\n";
 
-        if (standalone) {
+        if (standalone) {            
             setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
         }
 
@@ -369,6 +385,22 @@ int main(int argc, char** argv){
             // do this at the end as reading output array will shift it back to 
             // the host. Just use datasize_GB as crude tolerance for now.
             if ((validating) && (run==runs-1)) {
+                if (false) {
+                    std::cout << "Matrix A: \n";
+                    print_matrix(matrixA, widthA, heightA);
+                    std::cout << "Matrix B: \n";
+                    print_matrix(matrixB, widthB, heightB);
+                    std::cout << "Result: \n";
+                    print_matrix(matrixC, widthC, heightC);
+
+                    cpuMatMul<array_type>(
+                        matrixA, widthA, heightA, 
+                        matrixB, widthB, heightB, 
+                        matrixC
+                    );
+                    std::cout << "Reference: \n";
+                    print_matrix(matrixC, widthC, heightC);
+                }
                 validate(
                     &matrixA, widthA, heightA, 
                     &matrixB, widthB, heightB, 
@@ -1099,7 +1131,7 @@ int main(int argc, char** argv){
         }        
     }
 
-    if (true) { // Benchmark a page-tiled multi GPU
+    if (false) { // Benchmark a page-tiled multi GPU
         std::cout << "\nBenchmarking page tile multi GPU *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -1262,8 +1294,6 @@ int main(int argc, char** argv){
                 setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
             }
 
-            zero_matrix(matrixC, sizeC);
-
             timing_ms[run] = prefetch_page_tiled::multiGPU<
                 false, array_type, page_size, sm_count
             >(
@@ -1280,17 +1310,26 @@ int main(int argc, char** argv){
             // do this at the end as reading output array will shift it back to 
             // the host. Just use datasize_GB as crude tolerance for now.
             if ((validating) && (run==runs-1)) {
+                if (false) {
+                    std::cout << "Matrix A: \n";
+                    print_matrix(matrixA, widthA, heightA);
+                    std::cout << "Matrix B: \n";
+                    print_matrix(matrixB, widthB, heightB);
+                    std::cout << "Result: \n";
+                    print_matrix(matrixC, widthC, heightC);
+                }
                 validate(
                     &matrixA, widthA, heightA, 
                     &matrixB, widthB, heightB, 
                     &matrixC, datasize_bytes/1e9
                 );
                 if (false) {
-                    std::cout << "Matrix A: \n";
-                    print_matrix(matrixA, widthC, heightC);
-                    std::cout << "Matrix B: \n";
-                    print_matrix(matrixB, widthC, heightC);
-                    std::cout << "Result: \n";
+                    cpuMatMul<array_type>(
+                        matrixA, widthA, heightA, 
+                        matrixB, widthB, heightB, 
+                        matrixC
+                    );
+                    std::cout << "Reference: \n";
                     print_matrix(matrixC, widthC, heightC);
                 }
             }
