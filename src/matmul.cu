@@ -1344,5 +1344,4 @@ int main(int argc, char** argv){
             operations, datasize_bytes
         );
     }
-
 }

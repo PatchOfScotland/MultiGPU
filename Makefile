@@ -1,5 +1,7 @@
-FLAGS=-Xcompiler -fopenmp -O3 -arch=native
-FLAGS_HENDRIX=-Xcompiler -fopenmp -O3
+#Aarhus
+#FLAGS=-Xcompiler -fopenmp -O3 -arch=native
+#Hendirx
+FLAGS=-Xcompiler -fopenmp -O3
 PROGRAMS=map reduce matmul
 
 all: $(PROGRAMS)
@@ -22,9 +24,9 @@ memtest:
 
 hendrix:
 	mkdir -p build
-	nvcc src/map.cu -o $^ build/map $(FLAGS_HENDRIX)
-	nvcc src/reduce.cu -o $^ build/reduce $(FLAGS_HENDRIX)
-	nvcc src/matmul.cu -o $^ build/matmul $(FLAGS_HENDRIX)
+	nvcc src/map.cu -o $^ build/map $(FLAGS)
+	nvcc src/reduce.cu -o $^ build/reduce $(FLAGS)
+	nvcc src/matmul.cu -o $^ build/matmul $(FLAGS)
 
 map_bench:
 	make map

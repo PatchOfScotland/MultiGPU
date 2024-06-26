@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -p gpu --ntasks=1 --cpus-per-task=32 --mem=64G
 #SBATCH --job-name=MultiGPUBenchmarks
-#SBATCH -p gpu --gres=gpu:4
+#SBATCH -p gpu --gres=gpu:8 -w hendrixgpu03fl
 #SBATCH --time=2-00:00:00
 
 REPEATS=$1
