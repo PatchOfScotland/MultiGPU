@@ -92,8 +92,11 @@ __global__ void mmmPrefetchPageTiledKernel(
     const T* matrixA, const int widthA, const int heightA, 
     const T* matrixB, const int widthB, const int heightB, 
     T* const matrixC, const int widthC, const int heightC, 
-    const int block_x_offset, const int block_y_offset
+    const int block_x_offset, const int block_y_offset, const int device_offset
 ) { 
+    //if (block_x_offset = widthC) {
+    //    block_x_offset -= widthC;
+    //}
     int x = threadIdx.x + block_x_offset;
     int y = blockIdx.y*blockDim.y + block_y_offset;
 
@@ -102,7 +105,13 @@ __global__ void mmmPrefetchPageTiledKernel(
         y -= heightC;
     }
 
-    if( (x >= widthC) || (y >= heightC) ) return;
+    if ((x >= widthC) || (y >= heightC)) return;
+
+    x += device_offset;
+    
+    if (x >= widthC) {
+        x -= widthC;
+    }
 
     T accumulator = 0.0f;
     for(int k = 0; k < widthA; k ++) {
@@ -117,7 +126,7 @@ __global__ void mmmPrefetchPageTiledKernel(
 template <int isTB, class T> 
 __global__ void mmmPrefetchingKernel(
     const T* matrixA, T* matrixC, const int widthC, const int heightC,
-    const int block_x_offset, const int block_y_offset, int PageSize
+    const int block_x_offset, const int block_y_offset, int PageSize, const int device_offset
 ) { 
     int x = block_x_offset;
     int y = block_y_offset + threadIdx.x;
@@ -128,6 +137,12 @@ __global__ void mmmPrefetchingKernel(
     }
 
     if (x >= widthC) return;
+
+    x += device_offset;
+    
+    if (x >= widthC) {
+        x -= widthC;
+    }
 
     matrixC[y*widthC + x] = matrixA[y*widthC + x];
 }

@@ -9,10 +9,10 @@ namespace prefetch_page_tiled {
             const T* matrixA, const unsigned int widthA, const unsigned int heightA, 
             const T* matrixB, const unsigned int widthB, const unsigned int heightB, 
             T* const matrixC, const unsigned int widthC, const unsigned int per_device_heightC,
-            const int device
+            const int device, const int device_count, const bool offset
     ) {
         cudaSetDevice(device);
-
+        
         cudaError_t cudaError = cudaPeekAtLastError();
         if (cudaError != cudaSuccess) {
             std::cout << "CUDA beansed it\n" << cudaError << "\n";
@@ -29,11 +29,15 @@ namespace prefetch_page_tiled {
         const T* sub_matrixA = matrixA + (device * per_device_heightC * widthA);
         T* sub_matrixC = matrixC + (device * per_device_heightC * widthC);
 
-        unsigned int block_x_offset = 0;
-        unsigned int block_y_offset = 0;
-
         // setup execution parameters
         unsigned int blocks_x = (widthC + PageSize - 1) / PageSize; 
+
+        unsigned int block_x_offset = 0;
+        unsigned int block_y_offset = 0;
+        unsigned int device_offset = 0;
+        if (offset) {
+            device_offset = device*PageSize*(blocks_x/device_count);
+        }
     
         dim3 threadsPerBlock(PageSize, 1, 1);
         dim3 blockCount(1, SM, 1);
@@ -49,13 +53,14 @@ namespace prefetch_page_tiled {
         size_t runs = ((blocks_x*per_device_heightC) + SM - 1) / SM;
         //std::cout << "device " << device << " SM: " << SM << " PageSize: " << PageSize << "\n";
         //std::cout << "device " << device << " is going to run " << blocks_x*per_device_heightC << " blocks and has been told to run " << SM << " at once giving " << runs << " loops\n";
+        //std::cout << "device " << device << " is going to run " << blocks_x << " in the x axis with offset of " << block_x_offset << "\n";
         
         for (int run=0; run<runs; run++) {
             mmmPrefetchPageTiledKernel<isTB, T> <<< blockCount, threadsPerBlock, 0, processing_stream >>>(
                 sub_matrixA, widthA, heightA,
                 matrixB, widthB, heightB,
                 sub_matrixC, widthC, per_device_heightC,
-                block_x_offset, block_y_offset
+                block_x_offset, block_y_offset, device_offset
             );
 
             block_y_offset += SM;
@@ -66,7 +71,7 @@ namespace prefetch_page_tiled {
 
             mmmPrefetchingKernel<isTB, T> <<< 1, SM, 0, loading_stream >>> (
                 sub_matrixA, sub_matrixC, widthC, per_device_heightC,
-                block_x_offset, block_y_offset, PageSize
+                block_x_offset, block_y_offset, PageSize, device_offset
             );
 
             CCC(cudaEventRecord(sync_event_processing, processing_stream));
@@ -91,7 +96,7 @@ namespace prefetch_page_tiled {
         const T* matrixA, const unsigned int widthA, const unsigned int heightA, 
         const T* matrixB, const unsigned int widthB, const unsigned int heightB, 
         T* const matrixC, const unsigned int widthC, const unsigned int heightC,
-        const int device_count
+        const int device_count, const bool offset
     ) {  
         int origin_device;
         CCC(cudaGetDevice(&origin_device));
@@ -110,7 +115,7 @@ namespace prefetch_page_tiled {
                 matrixA, widthA, heightA, 
                 matrixB, widthB, heightB, 
                 matrixC, widthC, per_device_heightC,
-                device
+                device, device_count, offset
             );
         }
         

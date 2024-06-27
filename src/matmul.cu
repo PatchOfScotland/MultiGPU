@@ -1265,6 +1265,10 @@ int main(int argc, char** argv){
         );
     }
 
+    const int page_size = PAGE_SIZE / sizeof(array_type);
+    // Get this more dynamically determined
+    const int sm_count = 20; //20 aarhus, 84 hendrix03
+
     if (true) { // Benchmark a prefetching page-tiled multi GPU
         std::cout << "\nBenchmarking prefetching page tile multi GPU *****\n";
 
@@ -1273,16 +1277,12 @@ int main(int argc, char** argv){
         if (standalone) {
             setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
         }
-        
-        const int page_size = PAGE_SIZE / sizeof(array_type);
-        // Get this more dynamically determined
-        const int sm_count = 20; //20 aarhus, 84 hendrix03
 
         prefetch_page_tiled::multiGPU<false, array_type, page_size, sm_count>(
             matrixA, widthA, heightA, 
             matrixB, widthB, heightB, 
             matrixC, widthC, heightC,
-            devices
+            devices, false
         );
 
         if (standalone) {
@@ -1300,7 +1300,84 @@ int main(int argc, char** argv){
                 matrixA, widthA, heightA, 
                 matrixB, widthB, heightB, 
                 matrixC, widthC, heightC,
-                devices
+                devices, false
+            );
+
+            if (reduced_output == false) {
+                print_loop_feedback(run, runs);
+            }
+
+            // do this at the end as reading output array will shift it back to 
+            // the host. Just use datasize_GB as crude tolerance for now.
+            if ((validating) && (run==runs-1)) {
+                if (false) {
+                    std::cout << "Matrix A: \n";
+                    print_matrix(matrixA, widthA, heightA);
+                    std::cout << "Matrix B: \n";
+                    print_matrix(matrixB, widthB, heightB);
+                    std::cout << "Result: \n";
+                    print_matrix(matrixC, widthC, heightC);
+                }
+                validate(
+                    &matrixA, widthA, heightA, 
+                    &matrixB, widthB, heightB, 
+                    &matrixC, datasize_bytes/1e9
+                );
+                if (false) {
+                    cpuMatMul<array_type>(
+                        matrixA, widthA, heightA, 
+                        matrixB, widthB, heightB, 
+                        matrixC
+                    );
+                    std::cout << "Reference: \n";
+                    print_matrix(matrixC, widthC, heightC);
+                }
+            }
+
+            if (standalone) {
+                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            }
+        }
+
+        update_and_print_timing_stats(
+            timing_ms, runs, "prefetching page tiled multi GPU\0", &all_timings, &timings, 
+            operations, datasize_bytes
+        );
+    }
+
+
+    if (true) { // Benchmark an offset prefetching page-tiled multi GPU
+        std::cout << "\nBenchmarking offset prefetching page tile multi GPU *****\n";
+
+        std::cout << "  Running a warmup\n";
+
+        if (standalone) {
+            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
+        }
+        
+        prefetch_page_tiled::multiGPU<false, array_type, page_size, sm_count>(
+            matrixA, widthA, heightA, 
+            matrixB, widthB, heightB, 
+            matrixC, widthC, heightC,
+            devices, true
+        );
+
+        if (standalone) {
+            free_ABC_managed(&matrixA, &matrixB, &matrixC);
+        }
+
+        for (int run=0; run<runs; run++) {
+            if (standalone) {
+                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
+            }
+
+            timing_ms[run] = prefetch_page_tiled::multiGPU<
+                false, array_type, page_size, sm_count
+            >(
+                matrixA, widthA, heightA, 
+                matrixB, widthB, heightB, 
+                matrixC, widthC, heightC,
+                devices, true
             );
 
             if (reduced_output == false) {
