@@ -22,6 +22,10 @@ memtest:
 	mkdir -p build
 	nvcc src/memtest.cu -o $^ build/memtest $(FLAGS)
 
+matmul_sm:
+	mkdir -p build
+	nvcc src/matmul_sm.cu -o $^ build/matmul_sm $(FLAGS)
+
 hendrix:
 	mkdir -p build
 	nvcc src/map.cu -o $^ build/map $(FLAGS)
