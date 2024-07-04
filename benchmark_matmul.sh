@@ -9,7 +9,10 @@ NODE=$5
 hostname
 echo $CUDA_VISIBLE_DEVICES
 
-## Map
+## Matmul
+module load cuda/12.2
+make hendrix
+
 echo "Benchmarking Matrix Multiplication ${N} (${DEVICES} devices)"
 ./build/matmul ${N} ${N} ${N} $REPEATS -d ${DEVICES} -r > ./results/hendrixgpu${NODE}fl/${DEVICES}/matmul_${FLOPS}.out
 ./build/matmul ${N} ${N} ${N} $REPEATS -d ${DEVICES} -r -s > ./results/hendrixgpu${NODE}fl/${DEVICES}/matmul-no-repeat_${FLOPS}.out

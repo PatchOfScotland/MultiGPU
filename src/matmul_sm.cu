@@ -120,8 +120,8 @@ int main(int argc, char** argv){
     const int page_size = PAGE_SIZE / sizeof(array_type);
     // Get this more dynamically determined
 
-    int runs = 26;
-    int sm_counts[runs] = {1, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 320, 340, 360, 380, 400, 420, 440, 460, 480, 500};
+    int runs = 9;
+    int sm_counts[runs] = {1, 20, 40, 80, 120, 200, 400, 600, 1000};
 
     float matched[runs] = {};
     float offset[runs] = {};

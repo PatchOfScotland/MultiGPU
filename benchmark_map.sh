@@ -12,7 +12,7 @@ echo $CUDA_VISIBLE_DEVICES
 
 ## Map
 module load cuda/12.2
-make map
+make hendrix
 
 for i in "100000 1GB" \
          "200000 2GB" \

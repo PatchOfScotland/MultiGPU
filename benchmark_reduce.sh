@@ -11,6 +11,9 @@ hostname
 echo $CUDA_VISIBLE_DEVICES
 
 ## Reduce
+module load cuda/12.2
+make hendrix
+
 for i in "1000 8KB" \
          "10000 80KB" \
          "100000 800KB" \
