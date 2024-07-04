@@ -216,6 +216,11 @@ int main(int argc, char** argv){
               << (float)operations / 1e9
               << " GFLOPs per experiment\n";
 
+    if (widthA != heightB) {
+        std::cout << "Invalid matrix shapes\n";
+        exit(1);
+    }
+
     if (validating) {
         std::cout << "Will validate output\n";
     }
@@ -1070,7 +1075,7 @@ int main(int argc, char** argv){
         std::cout << "Cannot run cannon algorithm for uneven matrix sizes\n";
     }
     else {
-        if (false) { // Benchmark cannon single GPU
+        if (true) { // Benchmark cannon single GPU
             std::cout << "\nBenchmarking cannon single GPU *****\n";
 
             std::cout << "  Running a warmup\n";
@@ -1080,7 +1085,7 @@ int main(int argc, char** argv){
             }
 
             cannon::singleGPU<array_type>(
-                matrixA, matrixB, matrixC, widthA
+                matrixA, matrixB, matrixC, widthC
             );
 
             if (standalone) {
@@ -1090,10 +1095,11 @@ int main(int argc, char** argv){
             for (int run=0; run<runs; run++) {
                 if (standalone) {
                     setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
+                    zero_matrix(matrixC, widthC* heightC);
                 }
 
                 timing_ms[run] = cannon::singleGPU<array_type>(
-                    matrixA, matrixB, matrixC, widthA
+                    matrixA, matrixB, matrixC, heightC
                 );
 
 
@@ -1116,6 +1122,13 @@ int main(int argc, char** argv){
                         print_matrix(matrixB, widthB, heightB);
                         std::cout << "Result: \n";
                         print_matrix(matrixC, widthC, heightC);
+                        cpuMatMul<array_type>(
+                            matrixA, widthA, heightA, 
+                            matrixB, widthB, heightB, 
+                            matrixC
+                        );
+                        std::cout << "Reference: \n";
+                        print_matrix(matrixC, widthC, heightC);
                     }
                 }
 
@@ -1126,6 +1139,74 @@ int main(int argc, char** argv){
         
             update_and_print_timing_stats(
                 timing_ms, runs, "cannon single GPU\0", &all_timings, &timings, 
+                operations, datasize_bytes
+            );
+        }
+
+        if (true) { // Benchmark cannon multi GPU
+            std::cout << "\nBenchmarking cannon multi GPU *****\n";
+
+            std::cout << "  Running a warmup\n";
+
+            if (standalone) {
+                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
+            }
+
+            //cannon::multiGPU<array_type>(
+            //    matrixA, matrixB, matrixC, widthC, devices
+            //);
+
+            if (standalone) {
+                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            }
+
+            for (int run=0; run<runs; run++) {
+                if (standalone) {
+                    setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
+                    zero_matrix(matrixC, widthC* heightC);
+                }
+
+                timing_ms[run] = cannon::multiGPU<array_type>(
+                    matrixA, matrixB, matrixC, widthC, devices
+                );
+
+
+                if (reduced_output == false) {
+                    print_loop_feedback(run, runs);
+                }
+
+                // do this at the end as reading output array will shift it back to 
+                // the host. Just use datasize_GB as crude tolerance for now.
+                if ((validating) && (run==runs-1)) {
+                    validate(
+                        &matrixA, widthA, heightA, 
+                        &matrixB, widthB, heightB, 
+                        &matrixC, datasize_bytes/1e9
+                    );
+                    if (false) {
+                        std::cout << "Input A: \n";
+                        print_matrix(matrixA, widthA, heightA);
+                        std::cout << "Input B: \n";
+                        print_matrix(matrixB, widthB, heightB);
+                        std::cout << "Result: \n";
+                        print_matrix(matrixC, widthC, heightC);
+                        cpuMatMul<array_type>(
+                            matrixA, widthA, heightA, 
+                            matrixB, widthB, heightB, 
+                            matrixC
+                        );
+                        std::cout << "Reference: \n";
+                        print_matrix(matrixC, widthC, heightC);
+                    }
+                }
+
+                if (standalone) {
+                    free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                }
+            }
+        
+            update_and_print_timing_stats(
+                timing_ms, runs, "cannon multi GPU\0", &all_timings, &timings, 
                 operations, datasize_bytes
             );
         }        
@@ -1269,7 +1350,7 @@ int main(int argc, char** argv){
     // Get this more dynamically determined
     const int sm_count = 20; //20 aarhus, 84 hendrix03
 
-    if (true) { // Benchmark a prefetching page-tiled multi GPU
+    if (false) { // Benchmark a prefetching page-tiled multi GPU
         std::cout << "\nBenchmarking prefetching page tile multi GPU *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -1346,7 +1427,7 @@ int main(int argc, char** argv){
     }
 
 
-    if (true) { // Benchmark an offset prefetching page-tiled multi GPU
+    if (false) { // Benchmark an offset prefetching page-tiled multi GPU
         std::cout << "\nBenchmarking offset prefetching page tile multi GPU *****\n";
 
         std::cout << "  Running a warmup\n";

@@ -182,9 +182,50 @@ __global__ void mmmCannon(
 
     __syncthreads();
   }
-  if ((Bx_offset < n) && (Ay_offset < n))
-
+  if ((Bx_offset < n) && (Ay_offset < n)) {
     matrixC[Bx_offset + n * Ay_offset] = tmp;
+  }
 }
 
+// adapted from https://github.com/vogma/cannon_cuda_compression/blob/main/src/cudaMatrixMultiply.cu
+template <class T> 
+__global__ void mmmCannonQuadrant(
+    const T *matrixA, const T *matrixB, T *matrixC, 
+    const unsigned int n, const unsigned int quadrant_n,
+    const unsigned int blocks, const unsigned int offset_x, const unsigned int offset_y
+) {
+  // Allocate shared memory for the two blocks aSub and bSub.
+  // Use two-dimensional matrices of size BLOCK_SIZE * BLOCK_SIZE
+  __shared__ double aSub[CANNON_BLOCK][CANNON_BLOCK];
+  __shared__ double bSub[CANNON_BLOCK][CANNON_BLOCK];
+
+  const int Bx_offset = blockIdx.x * CANNON_BLOCK + threadIdx.x + offset_x;
+  const int Ay_offset = blockIdx.y * CANNON_BLOCK + threadIdx.y + offset_y;
+  double tmp = 0;
+  /* Go */
+  for (int block = 0; block < blocks; block += 1) {
+    int Ax_offset = threadIdx.x + block * CANNON_BLOCK;
+    int By_offset = threadIdx.y + block * CANNON_BLOCK;
+
+    if (Ax_offset < n && Ay_offset < n)
+      aSub[threadIdx.y][threadIdx.x] = matrixA[Ax_offset + Ay_offset * n];
+    else
+      aSub[threadIdx.y][threadIdx.x] = 0;
+    if (Bx_offset < n && By_offset < n)
+      bSub[threadIdx.y][threadIdx.x] = matrixB[Bx_offset + By_offset * n];
+    else
+      bSub[threadIdx.y][threadIdx.x] = 0;
+
+    __syncthreads(); // Make sure that all threads had time to read the sub
+                     // matrix.
+
+    for (int i = 0; i < CANNON_BLOCK; i++)
+      tmp += aSub[threadIdx.y][i] * bSub[i][threadIdx.x];
+
+    __syncthreads();
+  }
+  if (((Bx_offset) < n) && ((Ay_offset) < n)) {
+    matrixC[(Bx_offset) + (n * (Ay_offset))] = tmp;
+  }
+}
 #endif
