@@ -1071,6 +1071,8 @@ int main(int argc, char** argv){
         );
     }
 
+    const unsigned int cannon_block = 2;
+
     if ((widthA != heightA) || (widthA != widthB) || (widthA != heightB)) {
         std::cout << "Cannot run cannon algorithm for uneven matrix sizes\n";
     }
@@ -1084,7 +1086,7 @@ int main(int argc, char** argv){
                 setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
             }
 
-            cannon::singleGPU<array_type>(
+            cannon::singleGPU<array_type, cannon_block>(
                 matrixA, matrixB, matrixC, widthC
             );
 
@@ -1098,7 +1100,7 @@ int main(int argc, char** argv){
                     zero_matrix(matrixC, widthC* heightC);
                 }
 
-                timing_ms[run] = cannon::singleGPU<array_type>(
+                timing_ms[run] = cannon::singleGPU<array_type, cannon_block>(
                     matrixA, matrixB, matrixC, heightC
                 );
 
@@ -1152,9 +1154,9 @@ int main(int argc, char** argv){
                 setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
             }
 
-            //cannon::multiGPU<array_type>(
-            //    matrixA, matrixB, matrixC, widthC, devices
-            //);
+            cannon::multiGPU<array_type, cannon_block>(
+                matrixA, matrixB, matrixC, widthC, devices
+            );
 
             if (standalone) {
                 free_ABC_managed(&matrixA, &matrixB, &matrixC);
@@ -1166,7 +1168,7 @@ int main(int argc, char** argv){
                     zero_matrix(matrixC, widthC* heightC);
                 }
 
-                timing_ms[run] = cannon::multiGPU<array_type>(
+                timing_ms[run] = cannon::multiGPU<array_type, cannon_block>(
                     matrixA, matrixB, matrixC, widthC, devices
                 );
 
@@ -1183,11 +1185,11 @@ int main(int argc, char** argv){
                         &matrixB, widthB, heightB, 
                         &matrixC, datasize_bytes/1e9
                     );
-                    if (false) {
-                        std::cout << "Input A: \n";
-                        print_matrix(matrixA, widthA, heightA);
-                        std::cout << "Input B: \n";
-                        print_matrix(matrixB, widthB, heightB);
+                    if (true) {
+                        //std::cout << "Input A: \n";
+                        //print_matrix(matrixA, widthA, heightA);
+                        //std::cout << "Input B: \n";
+                        //print_matrix(matrixB, widthB, heightB);
                         std::cout << "Result: \n";
                         print_matrix(matrixC, widthC, heightC);
                         cpuMatMul<array_type>(

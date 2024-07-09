@@ -148,22 +148,22 @@ __global__ void mmmPrefetchingKernel(
 }
 
 // adapted from https://github.com/vogma/cannon_cuda_compression/blob/main/src/cudaMatrixMultiply.cu
-template <class T> 
+template <class T, int cannon_block> 
 __global__ void mmmCannon(
     const T *matrixA, const T *matrixB, T *matrixC, const int n
 ) {
   // Allocate shared memory for the two blocks aSub and bSub.
   // Use two-dimensional matrices of size BLOCK_SIZE * BLOCK_SIZE
-  __shared__ double aSub[CANNON_BLOCK][CANNON_BLOCK];
-  __shared__ double bSub[CANNON_BLOCK][CANNON_BLOCK];
+  __shared__ double aSub[cannon_block][cannon_block];
+  __shared__ double bSub[cannon_block][cannon_block];
 
-  const int Bx_offset = blockIdx.x * CANNON_BLOCK + threadIdx.x;
-  const int Ay_offset = blockIdx.y * CANNON_BLOCK + threadIdx.y;
+  const int Bx_offset = blockIdx.x * cannon_block + threadIdx.x;
+  const int Ay_offset = blockIdx.y * cannon_block + threadIdx.y;
   double tmp = 0;
   /* Go */
   for (int blocks = 0; blocks < gridDim.x; blocks += 1) {
-    int Ax_offset = threadIdx.x + blocks * CANNON_BLOCK;
-    int By_offset = threadIdx.y + blocks * CANNON_BLOCK;
+    int Ax_offset = threadIdx.x + blocks * cannon_block;
+    int By_offset = threadIdx.y + blocks * cannon_block;
 
     if (Ax_offset < n && Ay_offset < n)
       aSub[threadIdx.y][threadIdx.x] = matrixA[Ax_offset + Ay_offset * n];
@@ -177,7 +177,7 @@ __global__ void mmmCannon(
     __syncthreads(); // Make sure that all threads had time to read the sub
                      // matrix.
 
-    for (int i = 0; i < CANNON_BLOCK; i++)
+    for (int i = 0; i < cannon_block; i++)
       tmp += aSub[threadIdx.y][i] * bSub[i][threadIdx.x];
 
     __syncthreads();
@@ -188,7 +188,7 @@ __global__ void mmmCannon(
 }
 
 // adapted from https://github.com/vogma/cannon_cuda_compression/blob/main/src/cudaMatrixMultiply.cu
-template <class T> 
+template <class T, int cannon_block> 
 __global__ void mmmCannonQuadrant(
     const T *matrixA, const T *matrixB, T *matrixC, 
     const unsigned int n, const unsigned int quadrant_n,
@@ -196,16 +196,16 @@ __global__ void mmmCannonQuadrant(
 ) {
   // Allocate shared memory for the two blocks aSub and bSub.
   // Use two-dimensional matrices of size BLOCK_SIZE * BLOCK_SIZE
-  __shared__ double aSub[CANNON_BLOCK][CANNON_BLOCK];
-  __shared__ double bSub[CANNON_BLOCK][CANNON_BLOCK];
+  __shared__ double aSub[cannon_block][cannon_block];
+  __shared__ double bSub[cannon_block][cannon_block];
 
-  const int Bx_offset = blockIdx.x * CANNON_BLOCK + threadIdx.x + offset_x;
-  const int Ay_offset = blockIdx.y * CANNON_BLOCK + threadIdx.y + offset_y;
+  const int Bx_offset = blockIdx.x * cannon_block + threadIdx.x + offset_x;
+  const int Ay_offset = blockIdx.y * cannon_block + threadIdx.y + offset_y;
   double tmp = 0;
   /* Go */
   for (int block = 0; block < blocks; block += 1) {
-    int Ax_offset = threadIdx.x + block * CANNON_BLOCK;
-    int By_offset = threadIdx.y + block * CANNON_BLOCK;
+    int Ax_offset = threadIdx.x + block * cannon_block;
+    int By_offset = threadIdx.y + block * cannon_block;
 
     if (Ax_offset < n && Ay_offset < n)
       aSub[threadIdx.y][threadIdx.x] = matrixA[Ax_offset + Ay_offset * n];
@@ -219,7 +219,7 @@ __global__ void mmmCannonQuadrant(
     __syncthreads(); // Make sure that all threads had time to read the sub
                      // matrix.
 
-    for (int i = 0; i < CANNON_BLOCK; i++)
+    for (int i = 0; i < cannon_block; i++)
       tmp += aSub[threadIdx.y][i] * bSub[i][threadIdx.x];
 
     __syncthreads();
