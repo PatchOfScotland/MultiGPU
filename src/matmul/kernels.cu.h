@@ -191,8 +191,9 @@ __global__ void mmmCannon(
 template <class T, int cannon_block> 
 __global__ void mmmCannonQuadrant(
     const T *matrixA, const T *matrixB, T *matrixC, 
-    const unsigned int n, const unsigned int quadrant_n,
-    const unsigned int blocks, const unsigned int offset_x, const unsigned int offset_y
+    const unsigned int total_n, const unsigned int quadrant_n, 
+    const unsigned int blocks, 
+    const unsigned int offset_x, const unsigned int offset_y
 ) {
   // Allocate shared memory for the two blocks aSub and bSub.
   // Use two-dimensional matrices of size BLOCK_SIZE * BLOCK_SIZE
@@ -207,12 +208,12 @@ __global__ void mmmCannonQuadrant(
     int Ax_offset = threadIdx.x + block * cannon_block;
     int By_offset = threadIdx.y + block * cannon_block;
 
-    if (Ax_offset < n && Ay_offset < n)
-      aSub[threadIdx.y][threadIdx.x] = matrixA[Ax_offset + Ay_offset * n];
+    if (Ax_offset < total_n && Ay_offset < total_n)
+      aSub[threadIdx.y][threadIdx.x] = matrixA[Ax_offset + Ay_offset * total_n];
     else
       aSub[threadIdx.y][threadIdx.x] = 0;
-    if (Bx_offset < n && By_offset < n)
-      bSub[threadIdx.y][threadIdx.x] = matrixB[Bx_offset + By_offset * n];
+    if (Bx_offset < total_n && By_offset < total_n)
+      bSub[threadIdx.y][threadIdx.x] = matrixB[Bx_offset + By_offset * total_n];
     else
       bSub[threadIdx.y][threadIdx.x] = 0;
 
@@ -224,8 +225,8 @@ __global__ void mmmCannonQuadrant(
 
     __syncthreads();
   }
-  if (((Bx_offset) < n) && ((Ay_offset) < n)) {
-    matrixC[(Bx_offset) + (n * (Ay_offset))] = tmp;
+  if (((Bx_offset) < total_n) && ((Ay_offset) < total_n)) {
+    matrixC[(Bx_offset) + (total_n * (Ay_offset))] = tmp;
   }
 }
 #endif

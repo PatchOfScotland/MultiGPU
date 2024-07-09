@@ -1072,6 +1072,7 @@ int main(int argc, char** argv){
     }
 
     const unsigned int cannon_block = 2;
+    const size_t quadrants_per_dim = 4;
 
     if ((widthA != heightA) || (widthA != widthB) || (widthA != heightB)) {
         std::cout << "Cannot run cannon algorithm for uneven matrix sizes\n";
@@ -1154,9 +1155,9 @@ int main(int argc, char** argv){
                 setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
             }
 
-            cannon::multiGPU<array_type, cannon_block>(
-                matrixA, matrixB, matrixC, widthC, devices
-            );
+            //cannon::multiGPU<array_type, cannon_block, quadrants_per_dim>(
+            //    matrixA, matrixB, matrixC, widthC, devices
+            //);
 
             if (standalone) {
                 free_ABC_managed(&matrixA, &matrixB, &matrixC);
@@ -1168,7 +1169,9 @@ int main(int argc, char** argv){
                     zero_matrix(matrixC, widthC* heightC);
                 }
 
-                timing_ms[run] = cannon::multiGPU<array_type, cannon_block>(
+                timing_ms[run] = cannon::multiGPU<
+                    array_type, cannon_block, quadrants_per_dim
+                >(
                     matrixA, matrixB, matrixC, widthC, devices
                 );
 
@@ -1185,7 +1188,7 @@ int main(int argc, char** argv){
                         &matrixB, widthB, heightB, 
                         &matrixC, datasize_bytes/1e9
                     );
-                    if (true) {
+                    if (false) {
                         //std::cout << "Input A: \n";
                         //print_matrix(matrixA, widthA, heightA);
                         //std::cout << "Input B: \n";
