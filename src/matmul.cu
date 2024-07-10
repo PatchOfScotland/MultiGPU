@@ -1071,8 +1071,8 @@ int main(int argc, char** argv){
         );
     }
 
-    const unsigned int cannon_block = 2;
-    const size_t quadrants_per_dim = 4;
+    const unsigned int cannon_block = 32;
+    const size_t quadrants_per_dim = 2;
 
     if ((widthA != heightA) || (widthA != widthB) || (widthA != heightB)) {
         std::cout << "Cannot run cannon algorithm for uneven matrix sizes\n";
