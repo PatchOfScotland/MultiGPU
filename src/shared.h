@@ -92,31 +92,43 @@ void transpose_matrix(T* input, size_t width, size_t height, T* output) {
     }
 }
 
-template<class T, int PageSize, int Split>
-void z_order(T* input,  T* output, size_t x, size_t y, size_t width, size_t height) {
+// T is element type
+// Split is the length of a 'Z' grouping in both dimensions
+template<class T, int Split>
+int z_order(T* input,  T* output, size_t width, size_t height) {
 
-    int tileCountX = width/PageSize;
-    int tileCountY = height/PageSize;
-    
-    #pragma omp parallel for collapse(4)
+    if (width%Split) {
+        printf("Cannot convert to z order. Width of %zu does not divide by %d\n", width, Split);
+        return 1;
+    }
+    if (height%Split) {
+        printf("Cannot convert to z order. Height of %zu does not divide by %d\n", height, Split);
+        return 1;
+    }
+
+    int tileCountX = width/Split;
+    int tileCountY = height/Split;
+
+    //#pragma omp parallel for collapse(4)
     for (int tileX=0; tileX<tileCountX; tileX++) {
         for (int tileY=0; tileY<tileCountY; tileY++) {
-            for (int tileInnerX=0; tileInnerX<PageSize; tileInnerX++) {
-                for (int tileInnerY=0; tileInnerY<PageSize; tileInnerY++) {
-
+            for (int tileInnerX=0; tileInnerX<Split; tileInnerX++) {
+                for (int tileInnerY=0; tileInnerY<Split; tileInnerY++) {
                     int input_offset = tileInnerY // offset within each tile for its X index
-                         + PageSize*tileInnerX // offset within each tile for its Y index
-                         + tileX*PageSize*PageSize  // offset for each tile in X direction
-                         + tileY*PageSize*width;
+                         + Split*tileInnerX // offset within each tile for its Y index
+                         + tileX*Split*Split  // offset for each tile in X direction
+                         + tileY*Split*width;
                     int output_offset = tileInnerY // offset within each tile for its X index
                         + width*tileInnerX // offset within each tile for its Y index
-                        + PageSize*tileX // offset for each tile in X direction
-                        + tileY*PageSize*width; // offset for each tile in Y direction
-                    output[output_offset] = input[input_offset];
+                        + Split*tileX // offset for each tile in X direction
+                        + tileY*Split*width; // offset for each tile in Y direction
+                    output[output_offset] += input[input_offset];
                 }
             }
         }
     }
+
+    return 0;
 }
 
 template<class T>

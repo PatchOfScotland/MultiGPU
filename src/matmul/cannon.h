@@ -6,7 +6,7 @@
 // note only suitable for square matrixes
 namespace cannon {
     template<typename T, int cannon_block, size_t quadrants_per_dim>
-    void per_quadrant_management(
+    void per_quadrant_cannon_management(
             T* matrixA, T* matrixB, T* matrixC, 
             const unsigned int total_n, const unsigned int quadrant_n, 
             const unsigned int offset_x, const unsigned int offset_y, 
@@ -19,7 +19,6 @@ namespace cannon {
 
         dim3 dimGrid(blocks_quadrant, blocks_quadrant);
         dim3 dimBlock(cannon_block, cannon_block);
-
 
         //printf(
         //    "  Scheduling %d (%dx%dx%d) blocks of %d (%dx%dx%d)threads\n", 
@@ -47,7 +46,7 @@ namespace cannon {
     }
 
     template<typename T, int cannon_block, size_t quadrants_per_dim>
-    float multiGPU(
+    float blockedMultiGPU(
         T* matrixA, T* matrixB, T* matrixC, unsigned int n,
         const int device_count
     ) {
@@ -78,7 +77,7 @@ namespace cannon {
         std::thread threads[quadrants];
         for (int quadrant=0; quadrant<quadrants; quadrant++) {
             threads[quadrant] = std::thread(
-                per_quadrant_management<T, cannon_block, quadrants_per_dim>,
+                per_quadrant_cannon_management<T, cannon_block, quadrants_per_dim>,
                 matrixA, matrixB, matrixC, 
                 n, quadrant_n, offset_x, offset_y, device
             );
@@ -99,6 +98,108 @@ namespace cannon {
 
         for (int quadrant=0; quadrant<quadrants; quadrant++) {
             threads[quadrant].join();        
+        }
+
+        gettimeofday(&end_time, NULL); 
+        
+        cudaSetDevice(origin_device);
+
+        float time_microseconds = (end_time.tv_usec+(1e6*end_time.tv_sec)) 
+            - (start_time.tv_usec+(1e6*start_time.tv_sec));
+    
+        return time_microseconds;
+    }
+
+
+    template<typename T, int cannon_block, size_t quadrants_per_dim>
+    void per_quadrant_management(
+            T* matrixA, T* matrixB, T* matrixC, 
+            const unsigned int total_n, const unsigned int quadrant_n, 
+            const unsigned int offset_x, const unsigned int offset_y, 
+            const int device
+    ) {
+        //cudaSetDevice(device);
+
+        unsigned int blocks_dim = (total_n + cannon_block - 1) / cannon_block;
+        unsigned int blocks_quadrant = (blocks_dim + quadrants_per_dim - 1)  / quadrants_per_dim;
+
+        dim3 dimGrid(blocks_quadrant, blocks_quadrant);
+        dim3 dimBlock(cannon_block, cannon_block);
+
+        //printf(
+        //    "  Scheduling %d (%dx%dx%d) blocks of %d (%dx%dx%d)threads\n", 
+        //    dimGrid.x*dimGrid.y*dimGrid.z, 
+        //    dimGrid.x, dimGrid.y, dimGrid.z, 
+        //    dimBlock.x*dimBlock.y*dimBlock.z,
+        //    dimBlock.x, dimBlock.y, dimBlock.z
+        //);
+                
+        cudaEvent_t sync_event;
+        CCC(cudaEventCreate(&sync_event));
+        int n = total_n;
+        mmmNaiveKernel<0, 0, T> <<<dimGrid, dimBlock>>>(
+            matrixA, n, n,
+            matrixB, n, n,
+            matrixC, n, n
+        );
+        CCC(cudaEventRecord(sync_event));
+        CCC(cudaEventSynchronize(sync_event));
+
+        cudaError_t cudaError = cudaPeekAtLastError();
+        if (cudaError != cudaSuccess) {
+            std::cerr << "CUDA beansed it\n" << cudaError << "\n";
+            std::cerr << cudaGetErrorString(cudaError) << "\n";
+            exit(cudaError);
+        }
+    }
+
+    template<typename T, int cannon_block, size_t quadrants_per_dim>
+    float multiGPU(
+        T* matrixA, T* matrixB, T* matrixC, unsigned int n,
+        const int device_count
+    ) {
+        int origin_device;
+        CCC(cudaGetDevice(&origin_device));
+
+        const unsigned int quadrants = quadrants_per_dim * quadrants_per_dim;
+        const unsigned int quadrant_n = (n + quadrants_per_dim - 1) / quadrants_per_dim;;
+        const unsigned int my_cannon_block = 2;
+
+        std::cout << "Quads: " << quadrants << "," <<  quadrants_per_dim << "," <<  quadrant_n << "\n";
+
+        struct timeval start_time;
+        struct timeval end_time;
+
+        gettimeofday(&start_time, NULL); 
+
+        unsigned int offset_x = 0;
+        unsigned int offset_y = 0;
+
+        unsigned int device = 0;
+        std::thread threads[quadrants];
+        for (int quadrant=0; quadrant<1; quadrant++) {
+            threads[quadrant] = std::thread(
+                per_quadrant_management<T, my_cannon_block, quadrants_per_dim>,
+                matrixA, matrixB, matrixC, 
+                n, quadrant_n, offset_x, offset_y, device
+            );
+
+            //std::cout << "Scheduling with offsets: " << offset_x <<  "," <<  offset_y << "\n";
+            //std::cout << "Scheduling on device: " << device << "\n";
+
+            device += 1;
+            if (device >= device_count) {
+                device = 0;
+            }           
+            offset_x += quadrant_n;
+            if (offset_x >= n) {
+                offset_x = 0;
+                offset_y += quadrant_n;
+            }
+        }
+
+        for (int quadrant=0; quadrant<1; quadrant++) {
+            threads[quadrant].join();
         }
 
         gettimeofday(&end_time, NULL); 
