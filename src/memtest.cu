@@ -111,8 +111,7 @@ int main(int argc, char** argv){
     }
 
     const int page_size = 3;
-    const int splits = 2;
-    z_order<array_type, page_size, splits>(matrixA, matrixB, 0, 0, array_w, array_h);
+    z_order<array_type>(matrixA, matrixB, 0, 0, array_w, array_h, page_size);
 
     if (true) {
         std::cout << "Matrix A: \n";

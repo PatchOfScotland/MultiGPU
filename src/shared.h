@@ -76,6 +76,12 @@ void init_matrix(T* data, uint64_t size) {
 }
 
 template<class T>
+void init_matrix_linear(T* data, uint64_t size) {
+    for (uint64_t i = 0; i < size; i++)
+        data[i] = i;
+}
+
+template<class T>
 void duplicate_matrix(T* origin, uint64_t size, T* target) {
     #pragma omp parallel for
     for (uint64_t i = 0; i < size; i++)
@@ -93,36 +99,36 @@ void transpose_matrix(T* input, size_t width, size_t height, T* output) {
 }
 
 // T is element type
-// Split is the length of a 'Z' grouping in both dimensions
-template<class T, int Split>
-int z_order(T* input,  T* output, size_t width, size_t height) {
+// split is the length of a 'Z' grouping in both dimensions
+template<class T>
+int z_order(T* input,  T* output, size_t width, size_t height, int split) {
 
-    if (width%Split) {
-        printf("Cannot convert to z order. Width of %zu does not divide by %d\n", width, Split);
+    if (width%split) {
+        printf("Cannot convert to z order. Width of %zu does not divide by %d\n", width, split);
         return 1;
     }
-    if (height%Split) {
-        printf("Cannot convert to z order. Height of %zu does not divide by %d\n", height, Split);
+    if (height%split) {
+        printf("Cannot convert to z order. Height of %zu does not divide by %d\n", height, split);
         return 1;
     }
 
-    int tileCountX = width/Split;
-    int tileCountY = height/Split;
+    int tileCountX = width/split;
+    int tileCountY = height/split;
 
     //#pragma omp parallel for collapse(4)
     for (int tileX=0; tileX<tileCountX; tileX++) {
         for (int tileY=0; tileY<tileCountY; tileY++) {
-            for (int tileInnerX=0; tileInnerX<Split; tileInnerX++) {
-                for (int tileInnerY=0; tileInnerY<Split; tileInnerY++) {
+            for (int tileInnerX=0; tileInnerX<split; tileInnerX++) {
+                for (int tileInnerY=0; tileInnerY<split; tileInnerY++) {
                     int input_offset = tileInnerY // offset within each tile for its X index
-                         + Split*tileInnerX // offset within each tile for its Y index
-                         + tileX*Split*Split  // offset for each tile in X direction
-                         + tileY*Split*width;
+                         + split*tileInnerX // offset within each tile for its Y index
+                         + tileX*split*split  // offset for each tile in X direction
+                         + tileY*split*width;
                     int output_offset = tileInnerY // offset within each tile for its X index
                         + width*tileInnerX // offset within each tile for its Y index
-                        + Split*tileX // offset for each tile in X direction
-                        + tileY*Split*width; // offset for each tile in Y direction
-                    output[output_offset] += input[input_offset];
+                        + split*tileX // offset for each tile in X direction
+                        + tileY*split*width; // offset for each tile in Y direction
+                    output[output_offset] = input[input_offset];
                 }
             }
         }

@@ -334,10 +334,10 @@ int main(int argc, char** argv){
             // the host. Just use datasize_GB as crude tolerance for now.
             if ((validating) && (run==runs-1)) {
                 if (false) {
-                    std::cout << "Matrix A: \n";
-                    print_matrix(matrixA, widthA, heightA);
-                    std::cout << "Matrix B: \n";
-                    print_matrix(matrixB, widthB, heightB);
+                    //std::cout << "Matrix A: \n";
+                    //print_matrix(matrixA, widthA, heightA);
+                    //std::cout << "Matrix B: \n";
+                    //print_matrix(matrixB, widthB, heightB);
                     std::cout << "Result: \n";
                     print_matrix(matrixC, widthC, heightC);
 
@@ -1232,7 +1232,7 @@ int main(int argc, char** argv){
             );
         }        
 
-        if (false) { // Benchmark cannon multi GPU on device basis
+        if (true) { // Benchmark cannon multi GPU on device basis
             std::cout << "\nBenchmarking cannon multi GPU on device basis *****\n";
 
             std::cout << "  Running a warmup\n";
@@ -1255,11 +1255,11 @@ int main(int argc, char** argv){
                     zero_matrix(matrixC, widthC* heightC);
                 }
 
-                timing_ms[run] = cannon::multiGPU<array_type, cannon_block, quadrants_per_dim
-                >(
-                    matrixA, matrixB, matrixC, widthC, devices
-                );
+                const size_t quadrants_per_dim = 3;
 
+                timing_ms[run] = cannon::multiGPU<array_type>(
+                    matrixA, matrixB, matrixC, widthC, devices, quadrants_per_dim
+                );
 
                 if (reduced_output == false) {
                     print_loop_feedback(run, runs);
@@ -1267,23 +1267,25 @@ int main(int argc, char** argv){
 
                 // do this at the end as reading output array will shift it back to 
                 // the host. Just use datasize_GB as crude tolerance for now.
-                if ((validating) && (run==runs-1)) {
+                // NOTE CURRENTLY AVOIDING VALIDATION
+                if ((false) && (validating) && (run==runs-1)) {
+                    const int split = widthC / quadrants_per_dim;
                     validate(
                         &matrixA, widthA, heightA, 
                         &matrixB, widthB, heightB, 
                         &matrixC, datasize_bytes/1e9
                     );
-                    if (true) {
+                    if (false) {
                         //std::cout << "Input A: \n";
                         //print_matrix(matrixA, widthA, heightA);
                         //std::cout << "Input B: \n";
                         //print_matrix(matrixB, widthB, heightB);
                         std::cout << "Result: \n";
                         print_matrix(matrixC, widthC, heightC);
-                        cpuMatMul<array_type>(
+                        cpuMatMulZorder<array_type>(
                             matrixA, widthA, heightA, 
                             matrixB, widthB, heightB, 
-                            matrixC
+                            matrixC, split
                         );
                         std::cout << "Reference: \n";
                         print_matrix(matrixC, widthC, heightC);

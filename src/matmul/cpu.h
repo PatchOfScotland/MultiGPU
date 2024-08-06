@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "kernels.cu.h"
-
+#include "../shared.h"
 
 
 int getIndex(bool isTrans, int i, int j, int heightX, int widthX) {
@@ -38,6 +38,49 @@ float cpuMatMul(
     }
 
     gettimeofday(&cpu_end_time, NULL); 
+
+    float time_microseconds = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
+            - (cpu_start_time.tv_usec+(1e6*cpu_start_time.tv_sec));
+    
+    return time_microseconds * 1e3;
+}
+
+template<typename T>
+float cpuMatMulZorder(
+    T* matrixA, unsigned int widthA, unsigned int heightA, 
+    T* matrixB, unsigned int widthB, unsigned int heightB, 
+    T* matrixC, const int split
+) {
+    struct timeval cpu_start_time;
+    struct timeval cpu_end_time;
+
+    T* matrixAz = (T*)malloc(widthA*heightA*sizeof(T));
+    T* matrixBz = (T*)malloc(widthB*heightB*sizeof(T));
+
+    z_order<T>(matrixA, matrixAz, widthA, heightA, split);
+    z_order<T>(matrixB, matrixBz, widthB, heightB, split);
+    
+    gettimeofday(&cpu_start_time, NULL); 
+
+    // Performs matrix multiplication
+    #pragma omp parallel for shared(matrixC, matrixAz, matrixBz) collapse(2)
+    for(int i = 0; i < heightA; ++i) {
+        for(int j = 0; j < widthB; ++j) {
+            T acc = 0;
+            int c = i*widthB + j;
+            for(int k = 0; k < widthA; ++k) {
+                int a = getIndex(false, i, k, heightA, widthA);
+                int b = getIndex(false, k, j, widthA, widthB);
+                acc += matrixAz[a] * matrixBz[b];
+            }
+            matrixC[c] = acc;
+        }
+    }
+
+    gettimeofday(&cpu_end_time, NULL); 
+
+    free(matrixAz);
+    free(matrixBz);
 
     float time_microseconds = (cpu_end_time.tv_usec+(1e6*cpu_end_time.tv_sec)) 
             - (cpu_start_time.tv_usec+(1e6*cpu_start_time.tv_sec));

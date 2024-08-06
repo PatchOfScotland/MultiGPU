@@ -26,6 +26,10 @@ matmul_sm:
 	mkdir -p build
 	nvcc src/matmul_sm.cu -o $^ build/matmul_sm $(FLAGS)
 
+cannon_dev:
+	mkdir -p build
+	nvcc src/cannon_dev.cu -o $^ build/cannon_dev $(FLAGS)
+
 hendrix:
 	mkdir -p build
 	nvcc src/map.cu -o $^ build/map $(FLAGS)
