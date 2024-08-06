@@ -185,7 +185,7 @@ int main(int argc, char** argv){
                 std::cout << "Input B: \n";
                 print_matrix(matrixB, widthB, heightB);
 
-                timing_ms[run] = cannon::multiGPU<array_type>(
+                timing_ms[run] = cannon::multiGPU<array_type, TILE_SIZE>(
                     matrixA, matrixB, matrixC, widthC, devices, quadrants_per_dim
                 );
 

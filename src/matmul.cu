@@ -1241,7 +1241,7 @@ int main(int argc, char** argv){
                 setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
             }
 
-            //cannon::multiGPU<array_type, cannon_block, quadrants_per_dim>(
+            //cannon::multiGPU<array_type, TILE_SIZE>(
             //    matrixA, matrixB, matrixC, widthC, devices
             //);
 
@@ -1257,7 +1257,7 @@ int main(int argc, char** argv){
 
                 const size_t quadrants_per_dim = 3;
 
-                timing_ms[run] = cannon::multiGPU<array_type>(
+                timing_ms[run] = cannon::multiGPU<array_type, TILE_SIZE>(
                     matrixA, matrixB, matrixC, widthC, devices, quadrants_per_dim
                 );
 

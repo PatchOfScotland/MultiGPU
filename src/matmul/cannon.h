@@ -118,7 +118,7 @@ namespace cannon {
     }
 
 
-    template<typename T>
+    template<typename T, int TL>
     void per_quadrant_management(
             T* matrixA, T* matrixB, T* matrixC, 
             const unsigned int total_n, const unsigned int quadrant_n, 
@@ -136,6 +136,12 @@ namespace cannon {
         dim3 dimGrid(blocks_quadrant, blocks_quadrant);
         dim3 dimBlock(quadrant_n, quadrant_n);
 
+        unsigned int dim_x = (quadrant_n + TL - 1) / TL; 
+        unsigned int dim_y = (quadrant_n + TL - 1) / TL;
+
+        dim3 block(TL, TL, 1);      // blockcount
+        dim3 grid(dim_x, dim_y, 1); // threads per block
+
         //printf(
         //    "  Scheduling %d (%dx%dx%d) blocks of %d (%dx%dx%d)threads\n", 
         //    dimGrid.x*dimGrid.y*dimGrid.z, 
@@ -143,14 +149,17 @@ namespace cannon {
         //    dimBlock.x*dimBlock.y*dimBlock.z,
         //    dimBlock.x, dimBlock.y, dimBlock.z
         //);
+
+        printf("Quad %d starting with A: %p and B: %p\n", quadrant, matrixA, matrixB);
                 
         for (int iteration=0; iteration<quadrants_per_dim; iteration++) {
             cudaEvent_t sync_event;
             CCC(cudaEventCreate(&sync_event));
-            mmmPageTiledKernelAdditive<0, T> <<<dimGrid, dimBlock>>>(
+            mmmNaiveKernelAdditive<T> <<<dimGrid, dimBlock>>>(
                 matrixA, quadrant_n, quadrant_n,
                 matrixB, quadrant_n, quadrant_n,
-                matrixC, quadrant_n, quadrant_n
+                matrixC, quadrant_n, quadrant_n,
+                quadrant, iteration
             );
             CCC(cudaEventRecord(sync_event));
             CCC(cudaEventSynchronize(sync_event));
@@ -162,37 +171,42 @@ namespace cannon {
                 exit(cudaError);
             }
 
-            size_t count = write(a_channel_write, &matrixA, sizeof(T*));
-            if (count != sizeof(T*)) {
-                std::cerr << "write did not complete\n";
-                exit(EXIT_FAILURE);
-            }
-            count = write(b_channel_write, &matrixB, sizeof(T*));
-            if (count != sizeof(T*)) {
-                std::cerr << "write did not complete\n";
-                exit(EXIT_FAILURE);
-            }
+            if (iteration != quadrants_per_dim-1) {
+                size_t count = write(a_channel_write, &matrixA, sizeof(T*));
+                if (count != sizeof(T*)) {
+                    std::cerr << "write did not complete\n";
+                    exit(EXIT_FAILURE);
+                }
+                count = write(b_channel_write, &matrixB, sizeof(T*));
+                if (count != sizeof(T*)) {
+                    std::cerr << "write did not complete\n";
+                    exit(EXIT_FAILURE);
+                }
 
-            T* buf_a;
-            T* buf_b;
 
-            count = read(a_channel_read, &buf_a, sizeof(T*));
-            if (count != sizeof(T*)) {
-                std::cerr << "read did not complete\n";
-                exit(EXIT_FAILURE);
-            }
-            count = read(b_channel_read, &buf_b, sizeof(T*));
-            if (count != sizeof(T*)) {
-                std::cerr << "read did not complete\n";
-                exit(EXIT_FAILURE);
-            }
+                T* buf_a;
+                T* buf_b;
 
-            matrixA = buf_a;
-            matrixB = buf_b;
+                count = read(a_channel_read, &buf_a, sizeof(T*));
+                if (count != sizeof(T*)) {
+                    std::cerr << "read did not complete\n";
+                    exit(EXIT_FAILURE);
+                }
+                count = read(b_channel_read, &buf_b, sizeof(T*));
+                if (count != sizeof(T*)) {
+                    std::cerr << "read did not complete\n";
+                    exit(EXIT_FAILURE);
+                }
+
+                matrixA = buf_a;
+                matrixB = buf_b;
+
+                printf("Quad %d now got A: %p and B: %p\n", quadrant, matrixA, matrixB);
+            }
         }
     }
 
-    template<typename T>
+    template<typename T, int TL>
     float multiGPU(
         T* matrixA, T* matrixB, T* matrixC, unsigned int n,
         const int device_count, const size_t quadrants_per_dim
@@ -252,7 +266,7 @@ namespace cannon {
             unsigned int quadrant_offset = (quadrant_size * quadrant);
 
             threads[quadrant] = std::thread(
-                per_quadrant_management<T>,
+                per_quadrant_management<T, TL>,
                 matrixA + quadrant_offset, 
                 matrixB + quadrant_offset, 
                 matrixC + quadrant_offset, 

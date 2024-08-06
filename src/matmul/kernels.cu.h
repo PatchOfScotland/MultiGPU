@@ -86,11 +86,12 @@ __global__ void mmmPageTiledKernel(
     matrixC[y*widthC + x] = accumulator;
 }
 
-template <int isTB, class T> 
-__global__ void mmmPageTiledKernelAdditive(
+template <class T> 
+__global__ void mmmNaiveKernelAdditive(
     const T* matrixA, const int widthA, const int heightA, 
     const T* matrixB, const int widthB, const int heightB, 
-    T* matrixC, const int widthC, const int heightC
+    T* matrixC, const int widthC, const int heightC,
+    int quadrant, int iteration
 ) { 
     int x = blockIdx.x*blockDim.x + threadIdx.x;
     int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -100,10 +101,11 @@ __global__ void mmmPageTiledKernelAdditive(
     T accumulator = 0.0f;
     for(int k = 0; k < widthA; k ++) {
         T a = getElement<false, T>(y, k, matrixA, widthA, heightA);
-        T b = getElement<isTB, T>(k, x, matrixB, widthB, heightB);
+        T b = getElement<false, T>(k, x, matrixB, widthB, heightB);
         accumulator += a*b;
     }
 
+    //if ((quadrant == 1) && (iteration == 1))
     matrixC[y*widthC + x] += accumulator;
 }
 
