@@ -8,31 +8,31 @@ BUILD_DIR=default
 all: $(PROGRAMS)
 
 map: 
-	mkdir -p build
+	mkdir -p build/$(BUILD_DIR)
 	nvcc src/map.cu -o $^ build/$(BUILD_DIR)/map $(FLAGS)
 
 reduce: 
-	mkdir -p build
+	mkdir -p build/$(BUILD_DIR)
 	nvcc src/reduce.cu -o $^ build/$(BUILD_DIR)/reduce $(FLAGS)
 
 matmul:
-	mkdir -p build
+	mkdir -p build/$(BUILD_DIR)
 	nvcc src/matmul.cu -o $^ build/$(BUILD_DIR)/matmul $(FLAGS)
 
 memtest:
-	mkdir -p build
+	mkdir -p build/$(BUILD_DIR)
 	nvcc src/memtest.cu -o $^ build/$(BUILD_DIR)/memtest $(FLAGS)
 
 matmul_sm:
-	mkdir -p build
+	mkdir -p build/$(BUILD_DIR)
 	nvcc src/matmul_sm.cu -o $^ build/$(BUILD_DIR)/matmul_sm $(FLAGS)
 
 cannon_dev:
-	mkdir -p build
+	mkdir -p build/$(BUILD_DIR)
 	nvcc src/cannon_dev.cu -o $^ build/$(BUILD_DIR)/cannon_dev $(FLAGS)
 
 hendrix:
-	mkdir -p build
+	mkdir -p build/$(BUILD_DIR)
 	nvcc src/map.cu -o $^ build/$(BUILD_DIR)/map $(FLAGS)
 	nvcc src/reduce.cu -o $^ build/$(BUILD_DIR)/reduce $(FLAGS)
 	nvcc src/matmul.cu -o $^ build/$(BUILD_DIR)/matmul $(FLAGS)
@@ -49,5 +49,5 @@ clean:
 	rm -f build/$(BUILD_DIR)/*
 
 sanity_check:
-	mkdir -p build
+	mkdir -p build/$(BUILD_DIR)
 	nvcc src/sanity_check.cu -o $^ build/$(BUILD_DIR)/sanity_check $(FLAGS)
