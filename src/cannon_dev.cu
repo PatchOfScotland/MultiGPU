@@ -179,18 +179,19 @@ int main(int argc, char** argv){
                 }
 
                 const size_t quadrants_per_dim = 3;
-        
-                std::cout << "Input A: \n";
-                print_matrix(matrixA, widthA, heightA);
-                std::cout << "Input B: \n";
-                print_matrix(matrixB, widthB, heightB);
+
+                array_type* debugA = NULL;
+                array_type* debugB = NULL;
+                array_type* debugC = NULL;
+
+                setup_ABC_managed(&debugA, sizeA, &debugB, sizeB, &debugC, sizeC, false);
 
                 timing_ms[run] = cannon::multiGPU<array_type, TILE_SIZE>(
-                    matrixA, matrixB, matrixC, widthC, devices, quadrants_per_dim
+                    matrixA, matrixB, matrixC, widthC, devices, quadrants_per_dim,
+                    debugA, debugB, debugC
                 );
 
-                std::cout << "Result: \n";
-                print_matrix(matrixC, widthC, heightC);
+                free_ABC_managed(&debugA, &debugB, &debugC);
 
                 if (reduced_output == false) {
                     print_loop_feedback(run, runs);
@@ -207,11 +208,11 @@ int main(int argc, char** argv){
                     );
                     if (true) {
                         //std::cout << "Input A: \n";
-                        //print_matrix(matrixA, widthA, heightA);
+                        //print_matrix_z(matrixA, widthA, quadrants_per_dim);
                         //std::cout << "Input B: \n";
-                        //print_matrix(matrixB, widthB, heightB);
-                        //std::cout << "Result: \n";
-                        //print_matrix(matrixC, widthC, heightC);
+                        //print_matrix_z(matrixB, widthB, quadrants_per_dim);
+                        std::cout << "Result: \n";
+                        print_matrix_z(matrixC, widthC, quadrants_per_dim);
                         cpuMatMulZorder<array_type>(
                             matrixA, widthA, heightA, 
                             matrixB, widthB, heightB, 

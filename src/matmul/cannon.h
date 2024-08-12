@@ -126,7 +126,7 @@ namespace cannon {
             const int device, size_t quadrants_per_dim,
             int a_channel_write, int b_channel_write,
             int a_channel_read, int b_channel_read,
-            int quadrant
+            int quadrant, T* debugA, T* debugB, T* debugC 
     ) {
         //cudaSetDevice(device);
 
@@ -150,7 +150,7 @@ namespace cannon {
         //    dimBlock.x, dimBlock.y, dimBlock.z
         //);
 
-        printf("Quad %d starting with A: %p and B: %p\n", quadrant, matrixA, matrixB);
+        //printf("Quad %d starting with A: %p and B: %p\n", quadrant, matrixA, matrixB);
                 
         for (int iteration=0; iteration<quadrants_per_dim; iteration++) {
             cudaEvent_t sync_event;
@@ -159,10 +159,46 @@ namespace cannon {
                 matrixA, quadrant_n, quadrant_n,
                 matrixB, quadrant_n, quadrant_n,
                 matrixC, quadrant_n, quadrant_n,
-                quadrant, iteration
+                quadrant, iteration, debugA, debugB, debugC
             );
             CCC(cudaEventRecord(sync_event));
             CCC(cudaEventSynchronize(sync_event));
+
+
+int c = write(a_channel_write, &matrixA, sizeof(T*));
+if (c != sizeof(T*)) {
+std::cerr << "write did not complete\n";
+exit(EXIT_FAILURE); }
+T* buf;
+c = read(a_channel_read, &buf, sizeof(T*));
+if (c != sizeof(T*)) {
+std::cerr << "read did not complete\n";
+exit(EXIT_FAILURE); }
+
+
+            if (quadrant == 0) {
+                std::cout << "Iteraction " << iteration << " Debug A: \n";
+                print_matrix_z(debugA, total_n, quadrants_per_dim);
+                std::cout << "Iteraction " << iteration << " Debug B: \n";
+                print_matrix_z(debugB, total_n, quadrants_per_dim);
+                std::cout << "Iteraction " << iteration << " Debug C: \n";
+                print_matrix_z(debugC, total_n, quadrants_per_dim);
+
+                for (int i=0; i<total_n*total_n; i++) {
+                    debugA[i] = -1;
+                    debugB[i] = -1;
+                    debugC[i] = -1;
+                }
+            }
+
+c = write(a_channel_write, &matrixA, sizeof(T*));
+if (c != sizeof(T*)) {
+std::cerr << "write did not complete\n";
+exit(EXIT_FAILURE); }
+c = read(a_channel_read, &buf, sizeof(T*));
+if (c != sizeof(T*)) {
+std::cerr << "read did not complete\n";
+exit(EXIT_FAILURE); }
 
             cudaError_t cudaError = cudaPeekAtLastError();
             if (cudaError != cudaSuccess) {
@@ -201,7 +237,7 @@ namespace cannon {
                 matrixA = buf_a;
                 matrixB = buf_b;
 
-                printf("Quad %d now got A: %p and B: %p\n", quadrant, matrixA, matrixB);
+                //printf("Quad %d now got A: %p and B: %p\n", quadrant, matrixA, matrixB);
             }
         }
     }
@@ -209,7 +245,8 @@ namespace cannon {
     template<typename T, int TL>
     float multiGPU(
         T* matrixA, T* matrixB, T* matrixC, unsigned int n,
-        const int device_count, const size_t quadrants_per_dim
+        const int device_count, const size_t quadrants_per_dim,
+        T* debugA, T* debugB, T* debugC
     ) {
         int origin_device;
         CCC(cudaGetDevice(&origin_device));
@@ -273,7 +310,10 @@ namespace cannon {
                 n, quadrant_n, quadrant_size, device, quadrants_per_dim,
                 a_channels[(quadrant_a_write * 2) + 1], b_channels[(quadrant_b_write * 2) + 1],
                 a_channels[quadrant_a_read * 2], b_channels[quadrant_b_read * 2],
-                quadrant         
+                quadrant, 
+                debugA + quadrant_offset, 
+                debugB + quadrant_offset, 
+                debugC + quadrant_offset
             );
 
             //std::cout << "Scheduling with offsets: " << offset_x <<  "," <<  offset_y << "\n";

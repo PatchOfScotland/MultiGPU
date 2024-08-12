@@ -91,7 +91,10 @@ __global__ void mmmNaiveKernelAdditive(
     const T* matrixA, const int widthA, const int heightA, 
     const T* matrixB, const int widthB, const int heightB, 
     T* matrixC, const int widthC, const int heightC,
-    int quadrant, int iteration
+    int quadrant, int iteration,
+    T* debugA,
+    T* debugB,
+    T* debugC
 ) { 
     int x = blockIdx.x*blockDim.x + threadIdx.x;
     int y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -105,8 +108,10 @@ __global__ void mmmNaiveKernelAdditive(
         accumulator += a*b;
     }
 
-    //if ((quadrant == 1) && (iteration == 1))
     matrixC[y*widthC + x] += accumulator;
+    debugA[y*widthC + x] = matrixA[y*widthC + x];
+    debugB[y*widthC + x] = matrixB[y*widthC + x];
+    debugC[y*widthC + x] = matrixC[y*widthC + x];
 }
 
 // heightA = widthB

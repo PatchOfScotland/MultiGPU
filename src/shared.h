@@ -189,6 +189,28 @@ void print_matrix(T* matrix, size_t width, size_t height) {
     }
 }
 
+template<class T>
+void print_matrix_z(T* matrix, size_t n, size_t quadrants_per_dim) {
+    int split = n/quadrants_per_dim;
+
+    for (int vert_quad=0; vert_quad<quadrants_per_dim; vert_quad++) {
+        for (int quad_y=0; quad_y<split; quad_y++) {
+            for (int hor_quad=0; hor_quad<quadrants_per_dim; hor_quad++) {
+                int quadrant = hor_quad + (vert_quad*quadrants_per_dim); {
+                    for (int quad_x=0; quad_x<split; quad_x++) {
+                        std::cout << matrix[
+                                (quadrant*split*split) // offset for whole quadrant
+                                + quad_x // offset for horizontal
+                                + (quad_y * split) // offset for vertical
+                            ] << ", ";
+                    }
+                }
+            }
+            std::cout << "\n";
+        }
+    }
+}
+
 void _update_and_print_timing_stats(
     float* timing_array, size_t array_len, const char* title, 
     timing_stat** all_timings_ptr, int* timings, 
