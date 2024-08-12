@@ -3,50 +3,51 @@
 #Hendirx
 FLAGS=-Xcompiler -fopenmp -O3
 PROGRAMS=map reduce matmul
+BUILD_DIR=default
 
 all: $(PROGRAMS)
 
 map: 
 	mkdir -p build
-	nvcc src/map.cu -o $^ build/map $(FLAGS)
+	nvcc src/map.cu -o $^ build/$(BUILD_DIR)/map $(FLAGS)
 
 reduce: 
 	mkdir -p build
-	nvcc src/reduce.cu -o $^ build/reduce $(FLAGS)
+	nvcc src/reduce.cu -o $^ build/$(BUILD_DIR)/reduce $(FLAGS)
 
 matmul:
 	mkdir -p build
-	nvcc src/matmul.cu -o $^ build/matmul $(FLAGS)
+	nvcc src/matmul.cu -o $^ build/$(BUILD_DIR)/matmul $(FLAGS)
 
 memtest:
 	mkdir -p build
-	nvcc src/memtest.cu -o $^ build/memtest $(FLAGS)
+	nvcc src/memtest.cu -o $^ build/$(BUILD_DIR)/memtest $(FLAGS)
 
 matmul_sm:
 	mkdir -p build
-	nvcc src/matmul_sm.cu -o $^ build/matmul_sm $(FLAGS)
+	nvcc src/matmul_sm.cu -o $^ build/$(BUILD_DIR)/matmul_sm $(FLAGS)
 
 cannon_dev:
 	mkdir -p build
-	nvcc src/cannon_dev.cu -o $^ build/cannon_dev $(FLAGS)
+	nvcc src/cannon_dev.cu -o $^ build/$(BUILD_DIR)/cannon_dev $(FLAGS)
 
 hendrix:
 	mkdir -p build
-	nvcc src/map.cu -o $^ build/map $(FLAGS)
-	nvcc src/reduce.cu -o $^ build/reduce $(FLAGS)
-	nvcc src/matmul.cu -o $^ build/matmul $(FLAGS)
+	nvcc src/map.cu -o $^ build/$(BUILD_DIR)/map $(FLAGS)
+	nvcc src/reduce.cu -o $^ build/$(BUILD_DIR)/reduce $(FLAGS)
+	nvcc src/matmul.cu -o $^ build/$(BUILD_DIR)/matmul $(FLAGS)
 
 map_bench:
 	make map
-	./build/map 1000000000 100 -v
+	./build/$(BUILD_DIR)/map 1000000000 100 -v
 
 reduce_bench:
 	make reduce
-	./build/reduce 1000000000 100 -v
+	./build/$(BUILD_DIR)/reduce 1000000000 100 -v
 
 clean: 
-	rm -f build/*
+	rm -f build/$(BUILD_DIR)/*
 
 sanity_check:
 	mkdir -p build
-	nvcc src/sanity_check.cu -o $^ build/sanity_check $(FLAGS)
+	nvcc src/sanity_check.cu -o $^ build/$(BUILD_DIR)/sanity_check $(FLAGS)

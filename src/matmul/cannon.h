@@ -19,7 +19,7 @@ namespace cannon {
             const unsigned int offset_x, const unsigned int offset_y, 
             const int device
     ) {
-        //cudaSetDevice(device);
+        cudaSetDevice(device);
 
         unsigned int blocks_dim = (total_n + cannon_block - 1) / cannon_block;
         unsigned int blocks_quadrant = (blocks_dim + quadrants_per_dim - 1)  / quadrants_per_dim;
