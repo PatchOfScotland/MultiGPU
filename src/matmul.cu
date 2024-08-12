@@ -367,7 +367,7 @@ int main(int argc, char** argv){
         );
     }
  
-    if (false) { // Benchmark a tiled multi GPU raw
+    if (true) { // Benchmark a tiled multi GPU raw
         std::cout << "\nBenchmarking tiled multi GPU raw *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -919,7 +919,7 @@ int main(int argc, char** argv){
         );
     }
 
-    if (false) { // Benchmark a tiled multi GPU split w/ prefetch
+    if (true) { // Benchmark a tiled multi GPU split w/ prefetch
         std::cout << "\nBenchmarking tiled multi GPU split w/ prefetch *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -1094,7 +1094,7 @@ int main(int argc, char** argv){
         std::cout << "Cannot run cannon algorithm for uneven matrix sizes\n";
     }
     else {
-        if (true) { // Benchmark cannon single GPU
+        if (false) { // Benchmark cannon single GPU
             std::cout << "\nBenchmarking cannon single GPU *****\n";
 
             std::cout << "  Running a warmup\n";
@@ -1232,7 +1232,7 @@ int main(int argc, char** argv){
             );
         }        
 
-        if (true) { // Benchmark cannon multi GPU on device basis
+        if (false) { // Benchmark cannon multi GPU on device basis
             std::cout << "\nBenchmarking cannon multi GPU on device basis *****\n";
 
             std::cout << "  Running a warmup\n";
@@ -1241,9 +1241,9 @@ int main(int argc, char** argv){
                 setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
             }
 
-            //cannon::multiGPU<array_type, TILE_SIZE>(
-            //    matrixA, matrixB, matrixC, widthC, devices
-            //);
+            cannon::multiGPU<array_type, TILE_SIZE>(
+                matrixA, matrixB, matrixC, widthC, devices, quadrants_per_dim
+            );
 
             if (standalone) {
                 free_ABC_managed(&matrixA, &matrixB, &matrixC);
@@ -1255,7 +1255,7 @@ int main(int argc, char** argv){
                     zero_matrix(matrixC, widthC* heightC);
                 }
 
-                const size_t quadrants_per_dim = 3;
+                const size_t quadrants_per_dim = 2;
 
                 timing_ms[run] = cannon::multiGPU<array_type, TILE_SIZE>(
                     matrixA, matrixB, matrixC, widthC, devices, quadrants_per_dim
@@ -1304,7 +1304,7 @@ int main(int argc, char** argv){
         }        
     }
 
-    if (false) { // Benchmark a page-tiled multi GPU
+    if (true) { // Benchmark a page-tiled multi GPU
         std::cout << "\nBenchmarking page tile multi GPU *****\n";
 
         std::cout << "  Running a warmup\n";
@@ -1442,7 +1442,7 @@ int main(int argc, char** argv){
     // Get this more dynamically determined
     const int sm_count = 20; //20 aarhus, 84 hendrix03
 
-    if (false) { // Benchmark a prefetching page-tiled multi GPU
+    if (true) { // Benchmark a prefetching page-tiled multi GPU
         std::cout << "\nBenchmarking prefetching page tile multi GPU *****\n";
 
         std::cout << "  Running a warmup\n";
