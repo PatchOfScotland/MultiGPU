@@ -24,13 +24,13 @@ do
     #sbatch -o "slurm/map_${i}_%j.out" -p gpu ./benchmark_map.sh $REPEATS $i
     #sbatch -o "slurm/reduce_${i}_%j.out" -p gpu ./benchmark_reduce.sh $REPEATS $i
     for i in "2048 17GFLOPS" \
-             "4096 137GFLOPS" #\
-             #"6144 463GFLOPS" \
-             #"8192 1099GFLOPS" \
-             #"10240 2147GFLOPS" \
-             #"12288 3710GFLOPS" \
-             #"14336 5892GFLOPS" \
-             #"16384 8796GFLOPS"
+             "4096 137GFLOPS" \
+             "6144 463GFLOPS" \
+             "8192 1099GFLOPS" \
+             "10240 2147GFLOPS" \
+             "12288 3710GFLOPS" \
+             "14336 5892GFLOPS" \
+             "16384 8796GFLOPS"
     do
         set -- $i
         sbatch -J MM_${node}_${gpus}_${1} -o "slurm/hendrixgpu${node}fl/${gpus}/matmul_${i}.out" -p gpu --ntasks=1 --cpus-per-task=8 --mem=8G --gres=gpu:${gpus} -w hendrixgpu${node}fl --time=2-00:00:00 ./benchmark_matmul.sh $REPEATS ${gpus} $1 $2 ${node} ${build_dir}
