@@ -9,8 +9,6 @@
 #include "shared_cuda.cu.h"
 #include "shared.h"
 
-typedef float array_type;
-
 void setup_ABC_managed(
     array_type** matrixA, const unsigned long int sizeA,
     array_type** matrixB, const unsigned long int sizeB,
@@ -41,14 +39,16 @@ void validateZorder(
 ) {
     array_type* matrixAz = (array_type*)malloc(widthA*heightA*sizeof(array_type));
     array_type* matrixBz = (array_type*)malloc(widthB*heightB*sizeof(array_type));
+    array_type* matrixCz = (array_type*)malloc(widthB*heightB*sizeof(array_type));
 
     z_order<array_type>(*matrixA, matrixAz, widthA, heightA, split);
     z_order<array_type>(*matrixB, matrixBz, widthB, heightB, split);
+    z_order<array_type>(*matrixC, matrixCz, widthB, heightB, split);
 
     if(cpuValidation<array_type>(
         matrixAz, widthA, heightA, 
         matrixBz, widthB, heightB, 
-        *matrixC, tolerance
+        matrixCz, tolerance
     )){
         std::cout << "  Result is correct\n";
     } else {
@@ -58,6 +58,7 @@ void validateZorder(
 
     free(matrixAz);
     free(matrixBz);
+    free(matrixCz);
 }
 
 int main(int argc, char** argv){
@@ -180,18 +181,9 @@ int main(int argc, char** argv){
 
                 const size_t quadrants_per_dim = 3;
 
-                array_type* debugA = NULL;
-                array_type* debugB = NULL;
-                array_type* debugC = NULL;
-
-                setup_ABC_managed(&debugA, sizeA, &debugB, sizeB, &debugC, sizeC, false);
-
-                timing_ms[run] = cannon::multiGPU<array_type, TILE_SIZE>(
-                    matrixA, matrixB, matrixC, widthC, devices, quadrants_per_dim,
-                    debugA, debugB, debugC
+                timing_ms[run] = cannon::multiGPU<array_type, BLOCK_N>(
+                    matrixA, matrixB, matrixC, widthC, devices, quadrants_per_dim
                 );
-
-                free_ABC_managed(&debugA, &debugB, &debugC);
 
                 if (reduced_output == false) {
                     print_loop_feedback(run, runs);
@@ -206,11 +198,11 @@ int main(int argc, char** argv){
                         &matrixB, widthB, heightB, 
                         &matrixC, datasize_bytes/1e9, split
                     );
-                    if (true) {
-                        //std::cout << "Input A: \n";
-                        //print_matrix_z(matrixA, widthA, quadrants_per_dim);
-                        //std::cout << "Input B: \n";
-                        //print_matrix_z(matrixB, widthB, quadrants_per_dim);
+                    if (false) {
+                        std::cout << "Input A: \n";
+                        print_matrix_z(matrixA, widthA, quadrants_per_dim);
+                        std::cout << "Input B: \n";
+                        print_matrix_z(matrixB, widthB, quadrants_per_dim);
                         std::cout << "Result: \n";
                         print_matrix_z(matrixC, widthC, quadrants_per_dim);
                         cpuMatMulZorder<array_type>(
@@ -218,8 +210,8 @@ int main(int argc, char** argv){
                             matrixB, widthB, heightB, 
                             matrixC, split
                         );
-                        std::cout << "Reference: \n";
-                        print_matrix(matrixC, widthC, heightC);
+                        //std::cout << "Reference: \n";
+                        //print_matrix(matrixC, widthC, heightC);
                     }
                 }
 

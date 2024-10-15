@@ -97,6 +97,9 @@ bool cpuValidation(
     T* matrixB, unsigned int widthB, unsigned int heightB, 
     T* validating, T tolerance
 ) {
+
+    T* debug = (T*)calloc(widthA*heightA, sizeof(T));
+
     unsigned long int count = 0;
     #pragma omp parallel for collapse(2) reduction(+:count)
     for(int i = 0; i < heightA; ++i) {
@@ -111,9 +114,16 @@ bool cpuValidation(
             if (abs(matrixC - validating[c]) > tolerance) {
                 //printf("%f does not match %f at [%d][%d] with tolerance: %f\n", matrixC, validating[c], i, j, tolerance);
                 count++;
+                //debug[(i*widthB)+j] = 1;
             }
         }
     }
+
+
+    if (count != 0) {
+        //print_matrix(debug, widthA, heightA);
+    }
+    free(debug);
 
     if (count == 0) {
         return true;

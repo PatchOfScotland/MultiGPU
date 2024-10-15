@@ -5,29 +5,25 @@
 
 // note only suitable for square matrixes
 namespace cannon {
-    int* a_channels;
-    int* b_channels;
-    int shared_counter = 0;
-    pthread_cond_t condition;
-    pthread_mutex_t mutex;
+    array_type** matrixAs;
+    array_type** matrixBs;
 
-    void synchronize(const unsigned int quadrants) {
+    pthread_cond_t condition = PTHREAD_COND_INITIALIZER;
+    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+    unsigned int waiting = 0;
+
+    void synchronize(const unsigned thread_total) {
         pthread_mutex_lock(&mutex);
-
-        if (++shared_counter == quadrants) {
+        waiting += 1;
+        if (waiting == thread_total) {
             pthread_cond_broadcast(&condition);
-            shared_counter = 0;
-            std::cout << "CO\n";
+            waiting = 0;
         } else {
-            //while (shared_counter != quadrants) {
-                pthread_cond_wait(&condition, &mutex);
-                std::cout << "CP\n";
-            //}
+            pthread_cond_wait(&condition, &mutex);
         }
-
         pthread_mutex_unlock(&mutex);
     }
-    
+
     template<typename T, int cannon_block, size_t quadrants_per_dim>
     void per_quadrant_cannon_management(
             T* matrixA, T* matrixB, T* matrixC, 
@@ -136,92 +132,27 @@ namespace cannon {
 
     template<typename T, int TL>
     void per_quadrant_management(
-            T* matrixA, T* matrixB, T* matrixC, 
-            const unsigned int total_n, const unsigned int quadrant_n, 
-            const unsigned int quadrant_size, 
-            const int device, size_t quadrants_per_dim,
-            int a_channel_write, int b_channel_write,
-            int a_channel_read, int b_channel_read,
-            int quadrant, const unsigned int quadrants, T* debugA, T* debugB, T* debugC 
+            T* matrixA, T* matrixB, T* matrixC, const unsigned int quadrant_n, 
+            const int device, const size_t quadrants_per_dim, int quadrants,
+            const int a_write, const int b_write,
+            const int a_read, const int b_read
     ) {
-        //cudaSetDevice(device);
-
-        unsigned int blocks_dim = (total_n + quadrant_n - 1) / quadrant_n;
-        unsigned int blocks_quadrant = (blocks_dim + quadrants_per_dim - 1)  / quadrants_per_dim;
-
-        dim3 dimGrid(blocks_quadrant, blocks_quadrant);
-        dim3 dimBlock(quadrant_n, quadrant_n);
+        cudaSetDevice(device);
 
         unsigned int dim_x = (quadrant_n + TL - 1) / TL; 
         unsigned int dim_y = (quadrant_n + TL - 1) / TL;
 
-        dim3 block(TL, TL, 1);      // blockcount
-        dim3 grid(dim_x, dim_y, 1); // threads per block
-
-        //printf(
-        //    "  Scheduling %d (%dx%dx%d) blocks of %d (%dx%dx%d)threads\n", 
-        //    dimGrid.x*dimGrid.y*dimGrid.z, 
-        //    dimGrid.x, dimGrid.y, dimGrid.z, 
-        //    dimBlock.x*dimBlock.y*dimBlock.z,
-        //    dimBlock.x, dimBlock.y, dimBlock.z
-        //);
-
-        //printf("Quad %d starting with A: %p and B: %p\n", quadrant, matrixA, matrixB);
-                
+        dim3 dimBlock(TL, TL, 1);      // threads per block
+        dim3 dimGrid(dim_x, dim_y, 1); // blockcount
+      
         for (int iteration=0; iteration<quadrants_per_dim; iteration++) {
             cudaEvent_t sync_event;
             CCC(cudaEventCreate(&sync_event));
-            //if (quadrant == 1) {
             mmmNaiveKernelAdditive<T> <<<dimGrid, dimBlock>>>(
-                matrixA, quadrant_n, quadrant_n,
-                matrixB, quadrant_n, quadrant_n,
-                matrixC, quadrant_n, quadrant_n,
-                quadrant, iteration, debugA, debugB, debugC
+                matrixA, matrixB, matrixC, quadrant_n
             );
-            //}
             CCC(cudaEventRecord(sync_event));
             CCC(cudaEventSynchronize(sync_event));
-
-//sleep(1);
-int c = write(a_channel_write, &matrixA, sizeof(T*));
-if (c != sizeof(T*)) {
-std::cerr << "write did not complete\n";
-exit(EXIT_FAILURE); }
-            //synchronize(quadrants);           
-//sleep(1);
-T* buf;
-c = read(a_channel_read, &buf, sizeof(T*));
-if (c != sizeof(T*)) {
-std::cerr << "read did not complete\n";
-exit(EXIT_FAILURE); }
-//std::cout << "CP1-" << quadrant << "\n";
-//sleep(1);
-
-            if (quadrant == 0) {
-                std::cout << "Iteraction " << iteration << " Debug A: \n";
-                print_matrix_z(debugA, total_n, quadrants_per_dim);
-                std::cout << "Iteraction " << iteration << " Debug B: \n";
-                print_matrix_z(debugB, total_n, quadrants_per_dim);
-                std::cout << "Iteraction " << iteration << " Debug C: \n";
-                print_matrix_z(debugC, total_n, quadrants_per_dim);
-
-                for (int i=0; i<total_n*total_n; i++) {
-                    debugA[i] = -1;
-                    debugB[i] = -1;
-                    debugC[i] = -1;
-                }
-            }
-//sleep(1);
-c = write(a_channel_write, &matrixA, sizeof(T*));
-if (c != sizeof(T*)) {
-std::cerr << "write did not complete\n";
-exit(EXIT_FAILURE); }
-//sleep(1);
-c = read(a_channel_read, &buf, sizeof(T*));
-if (c != sizeof(T*)) {
-std::cerr << "read did not complete\n";
-exit(EXIT_FAILURE); }
-//sleep(1);
 
             cudaError_t cudaError = cudaPeekAtLastError();
             if (cudaError != cudaSuccess) {
@@ -231,37 +162,15 @@ exit(EXIT_FAILURE); }
             }
 
             if (iteration != quadrants_per_dim-1) {
-                size_t count = write(a_channel_write, &matrixA, sizeof(T*));
-                if (count != sizeof(T*)) {
-                    std::cerr << "write did not complete\n";
-                    exit(EXIT_FAILURE);
-                }
-                count = write(b_channel_write, &matrixB, sizeof(T*));
-                if (count != sizeof(T*)) {
-                    std::cerr << "write did not complete\n";
-                    exit(EXIT_FAILURE);
-                }
-
-//sleep(1);
-
-                T* buf_a;
-                T* buf_b;
-
-                count = read(a_channel_read, &buf_a, sizeof(T*));
-                if (count != sizeof(T*)) {
-                    std::cerr << "read did not complete\n";
-                    exit(EXIT_FAILURE);
-                }
-                count = read(b_channel_read, &buf_b, sizeof(T*));
-                if (count != sizeof(T*)) {
-                    std::cerr << "read did not complete\n";
-                    exit(EXIT_FAILURE);
-                }
-
-                matrixA = buf_a;
-                matrixB = buf_b;
-
-                //printf("Quad %d now got A: %p and B: %p\n", quadrant, matrixA, matrixB);
+                synchronize(quadrants);
+            
+                matrixAs[a_write] = matrixA;
+                matrixBs[b_write] = matrixB;
+            
+                synchronize(quadrants);
+            
+                matrixA = matrixAs[a_read];
+                matrixB = matrixBs[b_read];
             }
         }
     }
@@ -269,8 +178,7 @@ exit(EXIT_FAILURE); }
     template<typename T, int TL>
     float multiGPU(
         T* matrixA, T* matrixB, T* matrixC, unsigned int n,
-        const int device_count, const size_t quadrants_per_dim,
-        T* debugA, T* debugB, T* debugC
+        const int device_count, const size_t quadrants_per_dim
     ) {
         int origin_device;
         CCC(cudaGetDevice(&origin_device));
@@ -284,22 +192,13 @@ exit(EXIT_FAILURE); }
         const unsigned int quadrant_n = (n + quadrants_per_dim - 1) / quadrants_per_dim;;
         //std::cout << "Quads: " << quadrants << "," <<  quadrants_per_dim << "," <<  quadrant_n << "\n";
 
+        matrixAs = (T**)malloc(sizeof(T*)*quadrants);
+        matrixBs = (T**)malloc(sizeof(T*)*quadrants);
+
         unsigned int quadrant_size = quadrant_n * quadrant_n;
 
         unsigned int device = 0;
         std::thread threads[quadrants];
-        a_channels = (int*)malloc(quadrants * 2 * sizeof(int));
-        b_channels = (int*)malloc(quadrants * 2 * sizeof(int));
-        for (int i=0; i<quadrants; i++) {
-            if(pipe(a_channels + i*2) < 0) {
-                perror("Couldn't create pipe\n");
-                exit(EXIT_FAILURE);
-            }
-            if(pipe(b_channels + i*2) < 0) {
-                perror("Couldn't create pipe\n");
-                exit(EXIT_FAILURE);
-            }
-        }
 
         int x = 0;
         int y = 0;
@@ -312,13 +211,13 @@ exit(EXIT_FAILURE); }
         for (int quadrant=0; quadrant<quadrants; quadrant++) {  
             
             int ax_write = x;
-            int ay_write = (y + quadrant_n - 1) % quadrant_n;
-            int bx_write = (x + quadrant_n - 1) % quadrant_n;
+            int ay_write = (y + quadrants_per_dim - 1) % quadrants_per_dim;
+            int bx_write = (x + quadrants_per_dim - 1) % quadrants_per_dim;
             int by_write = y;
 
             int ax_read = x;
-            int ay_read = (y + 1) % quadrant_n;
-            int bx_read = (x + 1) % quadrant_n;
+            int ay_read = (y + 1) % quadrants_per_dim;
+            int bx_read = (x + 1) % quadrants_per_dim;
             int by_read = y;
 
             unsigned int quadrant_a_write = (ax_write * quadrants_per_dim) + ay_write;
@@ -326,39 +225,21 @@ exit(EXIT_FAILURE); }
             unsigned int quadrant_a_read = (ax_read * quadrants_per_dim) + ay_read;
             unsigned int quadrant_b_read = (bx_read * quadrants_per_dim) + by_read;
             
- 
-            int k = (x + y) % quadrant_n;
+            int k = (x + y) % quadrants_per_dim;
 
-           unsigned int quadrant_offset_a = (quadrant_size * (k + (x * quadrant_n)));
-           unsigned int quadrant_offset_b = (quadrant_size * (y + (k * quadrant_n)));
-           unsigned int quadrant_offset_c = (quadrant_size * (y + (x * quadrant_n)));
-           unsigned int quadrant_offset_c_old = (quadrant_size * quadrant);
-
-            //int Da = a[x][Dk];
-            //int Db = b[Dk][y];
-
-            std::cout << "Quad: " << quadrant 
-                << " starting with A: (" << x << "," << k << ") [" << quadrant_offset_a << "]" 
-                << " B: (" << k << "," << y << ") [" << quadrant_offset_b << "]" 
-                << " and C: (" << x << "," << y << ") [" << quadrant_offset_c << "]"
-                << " and C_old: (" << x << "," << y << ") [" << quadrant_offset_c_old << "]\n";
-
+            unsigned int quadrant_offset_a = (quadrant_size * (k + (x * quadrants_per_dim)));
+            unsigned int quadrant_offset_b = (quadrant_size * (y + (k * quadrants_per_dim)));
+            unsigned int quadrant_offset_c = (quadrant_size * (y + (x * quadrants_per_dim)));
+            
             threads[quadrant] = std::thread(
                 per_quadrant_management<T, TL>,
                 matrixA + quadrant_offset_a, 
                 matrixB + quadrant_offset_b, 
                 matrixC + quadrant_offset_c, 
-                n, quadrant_n, quadrant_size, device, quadrants_per_dim,
-                a_channels[(quadrant_a_write * 2) + 1], b_channels[(quadrant_b_write * 2) + 1],
-                a_channels[quadrant_a_read * 2], b_channels[quadrant_b_read * 2],
-                quadrant, quadrants,
-                debugA + quadrant_offset_a, 
-                debugB + quadrant_offset_b, 
-                debugC + quadrant_offset_c
+                quadrant_n, device, quadrants_per_dim, quadrants,
+                quadrant_a_write, quadrant_b_write, 
+                quadrant_a_read, quadrant_b_read
             );
-
-            //std::cout << "Scheduling with offsets: " << offset_x <<  "," <<  offset_y << "\n";
-            //std::cout << "Scheduling on device: " << device << "\n";
 
             y += 1;
             if (y >= quadrants_per_dim) {
@@ -380,8 +261,8 @@ exit(EXIT_FAILURE); }
         
         cudaSetDevice(origin_device);
 
-        free(a_channels);
-        free(b_channels);
+        free(matrixAs);
+        free(matrixBs);
 
         float time_microseconds = (end_time.tv_usec+(1e6*end_time.tv_sec)) 
             - (start_time.tv_usec+(1e6*start_time.tv_sec));

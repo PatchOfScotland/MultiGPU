@@ -9,147 +9,6 @@
 #include "shared_cuda.cu.h"
 #include "shared.h"
 
-typedef float array_type;
-
-void setup_ABC_managed(
-    array_type** matrixA, const unsigned long int sizeA,
-    array_type** matrixB, const unsigned long int sizeB,
-    array_type** matrixC, const unsigned long int sizeC,
-    bool validating
-) {
-    CCC(cudaMallocManaged(matrixA, sizeA*sizeof(array_type)));
-    CCC(cudaMallocManaged(matrixB, sizeB*sizeof(array_type)));
-    CCC(cudaMallocManaged(matrixC, sizeC*sizeof(array_type)));
-    if (validating) {
-        init_matrix<array_type>(*matrixA, sizeA);
-        init_matrix<array_type>(*matrixB, sizeB);
-    }
-}
-
-void setup_ABC_malloced(
-    array_type** matrixA, const unsigned long int sizeA,
-    array_type** matrixB, const unsigned long int sizeB,
-    array_type** matrixC, const unsigned long int sizeC,
-    bool validating
-) {
-
-    *matrixA = (array_type*)malloc(sizeA*sizeof(array_type));
-    *matrixB = (array_type*)malloc(sizeB*sizeof(array_type));
-    *matrixC = (array_type*)calloc(sizeC, sizeof(array_type));
-    if (validating) {
-        init_matrix<array_type>(*matrixA, sizeA);
-        init_matrix<array_type>(*matrixB, sizeB);
-    }
-}
-
-void setup_Bs_managed(
-    array_type** matrixB, array_type** matrixBs, 
-    const unsigned long int sizeB, const int device_count,
-    bool validating
-) {
-    matrixBs[0] = *matrixB;
-    for (int i=1; i<device_count; i++) {
-        CCC(cudaMallocManaged(&matrixBs[i], sizeB*sizeof(array_type)));
-        if (validating) {
-            duplicate_matrix(matrixBs[0], sizeB, matrixBs[i]);
-        }
-    }
-}
-
-void setup_AsBsCs_managed(
-    array_type** matrixA, array_type** matrixAs, const int sizeSplitA,
-    array_type** matrixB, array_type** matrixBs, const int sizeB,
-    array_type** matrixCs, const int sizeSplitC, const int device_count,
-    bool validating
-) {
-    for (int device=0; device<device_count; device++) {
-        CCC(cudaMallocManaged(&matrixAs[device], sizeSplitA*sizeof(array_type)));
-        CCC(cudaMallocManaged(&matrixBs[device], sizeB*sizeof(array_type)));
-        CCC(cudaMallocManaged(&matrixCs[device], sizeSplitC*sizeof(array_type)));
-        if (validating) {
-            duplicate_matrix(*matrixA+(sizeSplitA*device), sizeSplitA, matrixAs[device]);
-            duplicate_matrix(*matrixB, sizeB, matrixBs[device]);
-        }
-    }
-}
-
-void setup_AsBsCs_malloced(
-    array_type** matrixA, array_type** matrixAs, const int sizeSplitA,
-    array_type** matrixB, array_type** matrixBs, const int sizeB,
-    array_type** matrixCs, const int sizeSplitC, 
-    const int origin_device, const int device_count,
-    bool validating
-) {
-    for (int i=0; i<device_count; i++) {
-        CCC(cudaSetDevice(i));
-        CCC(cudaMalloc(&matrixAs[i], sizeSplitA*sizeof(array_type)));
-        CCC(cudaMalloc(&matrixBs[i], sizeB*sizeof(array_type)));
-        CCC(cudaMalloc(&matrixCs[i], sizeSplitC*sizeof(array_type)));
-        if (validating) {
-            CCC(cudaMemcpy(matrixAs[i], matrixA+(sizeSplitA*i), sizeSplitA*sizeof(array_type), cudaMemcpyHostToDevice));
-            CCC(cudaMemcpy(matrixBs[i], matrixB, sizeB*sizeof(array_type), cudaMemcpyHostToDevice));
-        }
-    }
-    CCC(cudaSetDevice(origin_device));
-}
-
-void setup_trans_managed(
-    array_type** input_matrix, array_type** output_matrix, 
-    const unsigned long int width, const unsigned long int height,
-    bool validating
-) {
-    CCC(cudaMallocManaged(output_matrix, width*height*sizeof(array_type)));
-    transpose_matrix(*input_matrix, width, height, *output_matrix);
-}
-
-void free_ABC_managed( 
-    array_type** matrixA, array_type** matrixB, array_type** matrixC
-) {
-    CCC(cudaFree(*matrixA));
-    CCC(cudaFree(*matrixB));
-    CCC(cudaFree(*matrixC));
-}
-
-void free_ABC_malloced( 
-    array_type** matrixA, array_type** matrixB, array_type** matrixC
-) {
-    free(*matrixA);
-    free(*matrixB);
-    free(*matrixC);
-}
-
-void free_Bs( 
-    array_type** matrixBs, const int device_count
-) {
-    for (int i=1; i<device_count; i++) {
-        CCC(cudaFree(matrixBs[i]));
-    }
-}
-
-void free_AsBsCs_managed( 
-    array_type** matrixAs, array_type** matrixBs, array_type** matrixCs, 
-    const int device_count
-) {
-    for (int i=0; i<device_count; i++) {
-        CCC(cudaFree(matrixAs[i]));
-        CCC(cudaFree(matrixBs[i]));
-        CCC(cudaFree(matrixCs[i]));
-    }  
-}
-
-void free_AsBsCs_malloced( 
-    array_type** matrixAs, array_type** matrixBs, array_type** matrixCs, 
-    const int origin_device, const int device_count
-) {
-    for (int i=0; i<device_count; i++) {
-        CCC(cudaSetDevice(i));
-        CCC(cudaFree(matrixAs[i]));
-        CCC(cudaFree(matrixBs[i]));
-        CCC(cudaFree(matrixCs[i]));
-    }   
-    CCC(cudaSetDevice(origin_device));
-}
-
 void validate(
     array_type** matrixA, const unsigned int widthA, const unsigned int heightA,
     array_type** matrixB, const unsigned int widthB, const unsigned int heightB,
@@ -255,7 +114,9 @@ int main(int argc, char** argv){
     int timings = 0;
     struct timing_stat* all_timings = NULL;
     
-    setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+    setup_managed(&matrixA, sizeA, validating);
+    setup_managed(&matrixB, sizeB, validating);
+    setup_managed(&matrixC, sizeC, false);
     setup_trans_managed(&matrixB, &matrixTransB, widthB, heightB, validating);
 
     float* timing_ms = (float*)calloc(runs, sizeof(float));
@@ -278,7 +139,9 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
         }
 
         if (false) {
@@ -295,13 +158,15 @@ int main(int argc, char** argv){
         std::cout << "CPU GFLOPS:         " << cpu_time.throughput_gf() << "ops/sec\n";
     }
 
-    if (false) { // Benchmark a tiled single GPU
+    if (true) { // Benchmark a tiled single GPU
         std::cout << "\nBenchmarking tiled single GPU *****\n";
 
         std::cout << "  Running a warmup\n";
 
         if (standalone) {
-            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+            setup_managed(&matrixA, sizeA, validating);
+            setup_managed(&matrixB, sizeB, validating);
+            setup_managed(&matrixC, sizeC, false);
         }
 
         tiled::singleGPU<false, false, array_type, TILE_SIZE>(
@@ -311,12 +176,16 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
             }
 
             timing_ms[run] = tiled::singleGPU<false, false, array_type, TILE_SIZE>(
@@ -357,7 +226,9 @@ int main(int argc, char** argv){
             }
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
             }
         }
         
@@ -373,7 +244,9 @@ int main(int argc, char** argv){
         std::cout << "  Running a warmup\n";
 
         if (standalone) {            
-            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+            setup_managed(&matrixA, sizeA, validating);
+            setup_managed(&matrixB, sizeB, validating);
+            setup_managed(&matrixC, sizeC, false);
         }
 
         tiled::multiGPU<false, false, array_type, TILE_SIZE>(
@@ -384,12 +257,16 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
             }
 
             timing_ms[run] = tiled::multiGPU<false, false, array_type, TILE_SIZE>(
@@ -430,7 +307,9 @@ int main(int argc, char** argv){
             }
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
             }
         }
 
@@ -446,7 +325,9 @@ int main(int argc, char** argv){
         std::cout << "  Running a warmup\n";
 
         if (standalone) {
-            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+            setup_managed(&matrixA, sizeA, validating);
+            setup_managed(&matrixB, sizeB, validating);
+            setup_managed(&matrixC, sizeC, false);
         }
 
         tiled::multiGPU<false, false, array_type, TILE_SIZE>(
@@ -457,12 +338,16 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
             }
 
             timing_ms[run] = tiled::multiGPU<false, false, array_type, TILE_SIZE>(
@@ -487,7 +372,9 @@ int main(int argc, char** argv){
             }
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
             }
         }
 
@@ -503,7 +390,9 @@ int main(int argc, char** argv){
         std::cout << "  Running a warmup\n";
 
         if (standalone) {
-            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+            setup_managed(&matrixA, sizeA, validating);
+            setup_managed(&matrixB, sizeB, validating);
+            setup_managed(&matrixC, sizeC, false);
         }
 
         tiled::multiGPU<false, false, array_type, TILE_SIZE>(
@@ -514,12 +403,16 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
             }
 
             timing_ms[run] = tiled::multiGPU<false, false, array_type, TILE_SIZE>(
@@ -544,7 +437,9 @@ int main(int argc, char** argv){
             }
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
             }
         }
 
@@ -561,10 +456,12 @@ int main(int argc, char** argv){
         std::cout << "  Running a warmup\n";
 
         if (standalone) {
-            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+            setup_managed(&matrixA, sizeA, validating);
+            setup_managed(&matrixB, sizeB, validating);
+            setup_managed(&matrixC, sizeC, false);
         }
         array_type* matrixBs[devices];
-        setup_Bs_managed(&matrixB, matrixBs, sizeB, devices, validating);
+        setup_managed_array(&matrixB, matrixBs, sizeB, devices, validating);
 
         tiled::multiGPUduplicate<false, false, array_type, TILE_SIZE>(
             matrixA, widthA, heightA, 
@@ -574,14 +471,18 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            free_ABC_managed(&matrixA, &matrixB, &matrixC);
-            free_Bs(matrixBs, devices);
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
+            free_managed_array(matrixBs, devices);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
-                setup_Bs_managed(&matrixB, matrixBs, sizeB, devices, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
+                setup_managed_array(&matrixB, matrixBs, sizeB, devices, validating);
             }
 
             timing_ms[run] = tiled::multiGPUduplicate<false, false, array_type, TILE_SIZE>(
@@ -606,13 +507,15 @@ int main(int argc, char** argv){
             }
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
-                free_Bs(matrixBs, devices);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
+                free_managed_array(matrixBs, devices);
             }
         }
 
         if (!standalone) {
-            free_Bs(matrixBs, devices);
+            free_managed_array(matrixBs, devices);
         }
         
         update_and_print_timing_stats(
@@ -627,10 +530,12 @@ int main(int argc, char** argv){
         std::cout << "  Running a warmup\n";
 
         if (standalone) {
-            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+            setup_managed(&matrixA, sizeA, validating);
+            setup_managed(&matrixB, sizeB, validating);
+            setup_managed(&matrixC, sizeC, false);
         }
         array_type* matrixBs[devices];
-        setup_Bs_managed(&matrixB, matrixBs, sizeB, devices, validating);
+        setup_managed_array(&matrixB, matrixBs, sizeB, devices, validating);
 
         tiled::multiGPUduplicate<false, false, array_type, TILE_SIZE>(
             matrixA, widthA, heightA, 
@@ -640,14 +545,18 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            free_ABC_managed(&matrixA, &matrixB, &matrixC);
-            free_Bs(matrixBs, devices);
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
+            free_managed_array(matrixBs, devices);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
-                setup_Bs_managed(&matrixB, matrixBs, sizeB, devices, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
+                setup_managed_array(&matrixB, matrixBs, sizeB, devices, validating);
             }
 
             timing_ms[run] = tiled::multiGPUduplicate<false, false, array_type, TILE_SIZE>(
@@ -672,13 +581,15 @@ int main(int argc, char** argv){
             }
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
-                free_Bs(matrixBs, devices);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
+                free_managed_array(matrixBs, devices);
             }
         }
 
         if (!standalone) {
-            free_Bs(matrixBs, devices); 
+            free_managed_array(matrixBs, devices); 
         }
         
         update_and_print_timing_stats(
@@ -693,10 +604,12 @@ int main(int argc, char** argv){
         std::cout << "  Running a warmup\n";
 
         if (standalone) {
-            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+            setup_managed(&matrixA, sizeA, validating);
+            setup_managed(&matrixB, sizeB, validating);
+            setup_managed(&matrixC, sizeC, false);
         }
         array_type* matrixBs[devices];
-        setup_Bs_managed(&matrixB, matrixBs, sizeB, devices, validating);
+        setup_managed_array(&matrixB, matrixBs, sizeB, devices, validating);
 
         tiled::multiGPUduplicate<false, false, array_type, 2>(
             matrixA, widthA, heightA, 
@@ -706,14 +619,18 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            free_ABC_managed(&matrixA, &matrixB, &matrixC);
-            free_Bs(matrixBs, devices);
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
+            free_managed_array(matrixBs, devices);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
-                setup_Bs_managed(&matrixB, matrixBs, sizeB, devices, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
+                setup_managed_array(&matrixB, matrixBs, sizeB, devices, validating);
             }
 
             timing_ms[run] = tiled::multiGPUduplicate<false, false, array_type, 2>(
@@ -738,13 +655,15 @@ int main(int argc, char** argv){
             }
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
-                free_Bs(matrixBs, devices);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
+                free_managed_array(matrixBs, devices);
             }
         }
 
         if (!standalone) {
-            free_Bs(matrixBs, devices);
+            free_managed_array(matrixBs, devices);
         }
 
         update_and_print_timing_stats(
@@ -767,7 +686,9 @@ int main(int argc, char** argv){
         const int sizeSplitC = heightSplitC * widthC;
         
         if (standalone) {
-            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+            setup_managed(&matrixA, sizeA, validating);
+            setup_managed(&matrixB, sizeB, validating);
+            setup_managed(&matrixC, sizeC, false);
         }
         setup_AsBsCs_managed(
             &matrixA, matrixAs, sizeSplitA,
@@ -784,13 +705,19 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            free_ABC_managed(&matrixA, &matrixB, &matrixC);
-            free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, devices);
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
+            free_managed_array(matrixAs, devices);
+            free_managed_array(matrixBs, devices);
+            free_managed_array(matrixCs, devices);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
                 setup_AsBsCs_managed(
                     &matrixA, matrixAs, sizeSplitA,
                     &matrixB, matrixBs, sizeB,
@@ -821,13 +748,19 @@ int main(int argc, char** argv){
             }
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
-                free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, devices);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
+                free_managed_array(matrixAs, devices);
+                free_managed_array(matrixBs, devices);
+                free_managed_array(matrixCs, devices);
             }
         }
 
         if (!standalone) {
-            free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, devices);
+            free_managed_array(matrixAs, devices);
+            free_managed_array(matrixBs, devices);
+            free_managed_array(matrixCs, devices);
         }
         
         update_and_print_timing_stats(
@@ -850,7 +783,9 @@ int main(int argc, char** argv){
         const int sizeSplitC = heightSplitC * widthC;
         
         if (standalone) {
-            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+            setup_managed(&matrixA, sizeA, validating);
+            setup_managed(&matrixB, sizeB, validating);
+            setup_managed(&matrixC, sizeC, false);
         }
         setup_AsBsCs_managed(
             &matrixA, matrixAs, sizeSplitA,
@@ -867,13 +802,19 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            free_ABC_managed(&matrixA, &matrixB, &matrixC);
-            free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, devices);
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
+            free_managed_array(matrixAs, devices);
+            free_managed_array(matrixBs, devices);
+            free_managed_array(matrixCs, devices);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
                 setup_AsBsCs_managed(
                     &matrixA, matrixAs, sizeSplitA,
                     &matrixB, matrixBs, sizeB,
@@ -904,13 +845,19 @@ int main(int argc, char** argv){
             }
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
-                free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, devices);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
+                free_managed_array(matrixAs, devices);
+                free_managed_array(matrixBs, devices);
+                free_managed_array(matrixCs, devices);
             }
         }
 
         if (!standalone) {
-            free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, devices);
+            free_managed_array(matrixAs, devices);
+            free_managed_array(matrixBs, devices);
+            free_managed_array(matrixCs, devices);
         }
         
         update_and_print_timing_stats(
@@ -933,7 +880,9 @@ int main(int argc, char** argv){
         const int sizeSplitC = heightSplitC * widthC;
         
         if (standalone) {
-            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+            setup_managed(&matrixA, sizeA, validating);
+            setup_managed(&matrixB, sizeB, validating);
+            setup_managed(&matrixC, sizeC, false);
         }
         setup_AsBsCs_managed(
             &matrixA, matrixAs, sizeSplitA,
@@ -950,13 +899,19 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            free_ABC_managed(&matrixA, &matrixB, &matrixC);
-            free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, devices);
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
+            free_managed_array(matrixAs, devices);
+            free_managed_array(matrixBs, devices);
+            free_managed_array(matrixCs, devices);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
                 setup_AsBsCs_managed(
                     &matrixA, matrixAs, sizeSplitA,
                     &matrixB, matrixBs, sizeB,
@@ -987,13 +942,19 @@ int main(int argc, char** argv){
             }
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
-                free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, devices);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
+                free_managed_array(matrixAs, devices);
+                free_managed_array(matrixBs, devices);
+                free_managed_array(matrixCs, devices);
             }
         }
 
         if (!standalone) {
-            free_AsBsCs_managed(matrixAs, matrixBs, matrixCs, devices);
+            free_managed_array(matrixAs, devices);
+            free_managed_array(matrixBs, devices);
+            free_managed_array(matrixCs, devices);
         }
 
         update_and_print_timing_stats(
@@ -1014,7 +975,9 @@ int main(int argc, char** argv){
         array_type* deviceMatrixBs[devices];
         array_type* deviceMatrixCs[devices];
 
-        setup_ABC_malloced(&hostMatrixA, sizeA, &hostMatrixB, sizeB, &hostMatrixC, sizeC, validating);
+        setup_malloced(&hostMatrixA, sizeA, validating);
+        setup_malloced(&hostMatrixB, sizeB, validating);
+        setup_malloced(&hostMatrixC, sizeC, false);
 
         const int heightSplitA = (heightA + devices - 1) / devices;
         const int heightSplitC = (heightC + devices - 1) / devices;
@@ -1036,8 +999,9 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            free_AsBsCs_malloced(deviceMatrixAs, deviceMatrixBs, deviceMatrixCs, 
-            origin_device, devices);
+            free_malloced_array(deviceMatrixAs, origin_device, devices);
+            free_malloced_array(deviceMatrixBs, origin_device, devices);
+            free_malloced_array(deviceMatrixCs, origin_device, devices);
         }
 
         for (int run=0; run<runs; run++) {
@@ -1072,13 +1036,19 @@ int main(int argc, char** argv){
             }
 
             if (standalone) {
-                free_AsBsCs_malloced(deviceMatrixAs, deviceMatrixBs, deviceMatrixCs, origin_device, devices);
+                free_malloced_array(deviceMatrixAs, origin_device, devices);
+                free_malloced_array(deviceMatrixBs, origin_device, devices);
+                free_malloced_array(deviceMatrixCs, origin_device, devices);
             }
         }
 
         if (!standalone) {
-            free_ABC_malloced(&hostMatrixA, &hostMatrixB, &hostMatrixC);
-            free_AsBsCs_malloced(deviceMatrixAs, deviceMatrixBs, deviceMatrixCs, origin_device, devices);
+            free_malloced(&hostMatrixA);
+            free_malloced(&hostMatrixB);
+            free_malloced(&hostMatrixC);
+            free_malloced_array(deviceMatrixAs, origin_device, devices);
+            free_malloced_array(deviceMatrixBs, origin_device, devices);
+            free_malloced_array(deviceMatrixCs, origin_device, devices);
         }
         
         update_and_print_timing_stats(
@@ -1094,13 +1064,15 @@ int main(int argc, char** argv){
         std::cout << "Cannot run cannon algorithm for uneven matrix sizes\n";
     }
     else {
-        if (false) { // Benchmark cannon single GPU
+        if (true) { // Benchmark cannon single GPU
             std::cout << "\nBenchmarking cannon single GPU *****\n";
 
             std::cout << "  Running a warmup\n";
 
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
             }
 
             cannon::singleGPU<array_type, cannon_block>(
@@ -1108,12 +1080,16 @@ int main(int argc, char** argv){
             );
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
             }
 
             for (int run=0; run<runs; run++) {
                 if (standalone) {
-                    setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                    setup_managed(&matrixA, sizeA, validating);
+                    setup_managed(&matrixB, sizeB, validating);
+                    setup_managed(&matrixC, sizeC, false);  
                     zero_matrix(matrixC, widthC* heightC);
                 }
 
@@ -1152,7 +1128,9 @@ int main(int argc, char** argv){
                 }
 
                 if (standalone) {
-                    free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                    free_managed(&matrixA);
+                    free_managed(&matrixB);
+                    free_managed(&matrixC);
                 }
             }
         
@@ -1162,13 +1140,15 @@ int main(int argc, char** argv){
             );
         }
 
-        if (false) { // Benchmark cannon multi GPU on block basis
+        if (true) { // Benchmark cannon multi GPU on block basis
             std::cout << "\nBenchmarking cannon multi GPU on block basis *****\n";
 
             std::cout << "  Running a warmup\n";
 
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
             }
 
             cannon::blockedMultiGPU<array_type, cannon_block, quadrants_per_dim>(
@@ -1176,12 +1156,16 @@ int main(int argc, char** argv){
             );
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
             }
 
             for (int run=0; run<runs; run++) {
                 if (standalone) {
-                    setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                    setup_managed(&matrixA, sizeA, validating);
+                    setup_managed(&matrixB, sizeB, validating);
+                    setup_managed(&matrixC, sizeC, false);
                     zero_matrix(matrixC, widthC* heightC);
                 }
 
@@ -1222,7 +1206,9 @@ int main(int argc, char** argv){
                 }
 
                 if (standalone) {
-                    free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                    free_managed(&matrixA);
+                    free_managed(&matrixB);
+                    free_managed(&matrixC);
                 }
             }
         
@@ -1232,13 +1218,15 @@ int main(int argc, char** argv){
             );
         }        
 
-        if (false) { // Benchmark cannon multi GPU on device basis
+        if (true) { // Benchmark cannon multi GPU on device basis
             std::cout << "\nBenchmarking cannon multi GPU on device basis *****\n";
 
             std::cout << "  Running a warmup\n";
 
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
             }
 
             cannon::multiGPU<array_type, TILE_SIZE>(
@@ -1246,12 +1234,16 @@ int main(int argc, char** argv){
             );
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
             }
 
             for (int run=0; run<runs; run++) {
                 if (standalone) {
-                    setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                    setup_managed(&matrixA, sizeA, validating);
+                    setup_managed(&matrixB, sizeB, validating);
+                    setup_managed(&matrixC, sizeC, false);
                     zero_matrix(matrixC, widthC* heightC);
                 }
 
@@ -1267,8 +1259,7 @@ int main(int argc, char** argv){
 
                 // do this at the end as reading output array will shift it back to 
                 // the host. Just use datasize_GB as crude tolerance for now.
-                // NOTE CURRENTLY AVOIDING VALIDATION
-                if ((false) && (validating) && (run==runs-1)) {
+                if ((validating) && (run==runs-1)) {
                     const int split = widthC / quadrants_per_dim;
                     validate(
                         &matrixA, widthA, heightA, 
@@ -1293,12 +1284,92 @@ int main(int argc, char** argv){
                 }
 
                 if (standalone) {
-                    free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                    free_managed(&matrixA);
+                    free_managed(&matrixB);
+                    free_managed(&matrixC);
                 }
             }
         
             update_and_print_timing_stats(
                 timing_ms, runs, "cannon multi GPU\0", &all_timings, &timings, 
+                operations, datasize_bytes
+            );
+        }        
+
+        if (true) { // Benchmark cannon multi GPU on device basis with prefetch
+            std::cout << "\nBenchmarking cannon multi GPU on device basis with prefetch *****\n";
+
+            std::cout << "  Running a warmup\n";
+
+            if (standalone) {
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
+            }
+
+            cannon::multiGPU<array_type, TILE_SIZE>(
+                matrixA, matrixB, matrixC, widthC, devices, quadrants_per_dim
+            );
+
+            if (standalone) {
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
+            }
+
+            for (int run=0; run<runs; run++) {
+                if (standalone) {
+                    setup_managed(&matrixA, sizeA, validating);
+                    setup_managed(&matrixB, sizeB, validating);
+                    setup_managed(&matrixC, sizeC, false);
+                    zero_matrix(matrixC, widthC* heightC);
+                }
+
+                const size_t quadrants_per_dim = 2;
+
+                timing_ms[run] = cannon::multiGPU<array_type, TILE_SIZE>(
+                    matrixA, matrixB, matrixC, widthC, devices, quadrants_per_dim
+                );
+
+                if (reduced_output == false) {
+                    print_loop_feedback(run, runs);
+                }
+
+                // do this at the end as reading output array will shift it back to 
+                // the host. Just use datasize_GB as crude tolerance for now.
+                if ((validating) && (run==runs-1)) {
+                    const int split = widthC / quadrants_per_dim;
+                    validate(
+                        &matrixA, widthA, heightA, 
+                        &matrixB, widthB, heightB, 
+                        &matrixC, datasize_bytes/1e9
+                    );
+                    if (false) {
+                        //std::cout << "Input A: \n";
+                        //print_matrix(matrixA, widthA, heightA);
+                        //std::cout << "Input B: \n";
+                        //print_matrix(matrixB, widthB, heightB);
+                        std::cout << "Result: \n";
+                        print_matrix(matrixC, widthC, heightC);
+                        cpuMatMulZorder<array_type>(
+                            matrixA, widthA, heightA, 
+                            matrixB, widthB, heightB, 
+                            matrixC, split
+                        );
+                        std::cout << "Reference: \n";
+                        print_matrix(matrixC, widthC, heightC);
+                    }
+                }
+
+                if (standalone) {
+                    free_managed(&matrixA);
+                    free_managed(&matrixB);
+                    free_managed(&matrixC);
+                }
+            }
+        
+            update_and_print_timing_stats(
+                timing_ms, runs, "cannon prefetch multi GPU\0", &all_timings, &timings, 
                 operations, datasize_bytes
             );
         }        
@@ -1310,7 +1381,9 @@ int main(int argc, char** argv){
         std::cout << "  Running a warmup\n";
 
         if (standalone) {
-            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+            setup_managed(&matrixA, sizeA, validating);
+            setup_managed(&matrixB, sizeB, validating);
+            setup_managed(&matrixC, sizeC, false);
         }
         
         const int page_size = PAGE_SIZE / sizeof(array_type);
@@ -1323,12 +1396,16 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
             }
 
             timing_ms[run] = page_tiled::multiGPU<
@@ -1363,7 +1440,9 @@ int main(int argc, char** argv){
             }
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
             }
         }
 
@@ -1379,7 +1458,9 @@ int main(int argc, char** argv){
         std::cout << "  Running a warmup\n";
 
         if (standalone) {
-            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+            setup_managed(&matrixA, sizeA, validating);
+            setup_managed(&matrixB, sizeB, validating);
+            setup_managed(&matrixC, sizeC, false);
             setup_trans_managed(&matrixB, &matrixTransB, widthB, heightB, validating);
         }
         
@@ -1393,13 +1474,17 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
             free(matrixTransB);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
                 setup_trans_managed(&matrixB, &matrixTransB, widthB, heightB, validating);
             }
 
@@ -1427,7 +1512,9 @@ int main(int argc, char** argv){
             }
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
                 free(matrixTransB);
             }
         }
@@ -1448,7 +1535,9 @@ int main(int argc, char** argv){
         std::cout << "  Running a warmup\n";
 
         if (standalone) {
-            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+            setup_managed(&matrixA, sizeA, validating);
+            setup_managed(&matrixB, sizeB, validating);
+            setup_managed(&matrixC, sizeC, false);
         }
 
         prefetch_page_tiled::multiGPU<false, array_type, page_size, sm_count>(
@@ -1459,12 +1548,16 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
             }
 
             timing_ms[run] = prefetch_page_tiled::multiGPU<
@@ -1508,7 +1601,9 @@ int main(int argc, char** argv){
             }
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
             }
         }
 
@@ -1524,7 +1619,9 @@ int main(int argc, char** argv){
         std::cout << "  Running a warmup\n";
 
         if (standalone) {
-            setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+            setup_managed(&matrixA, sizeA, validating);
+            setup_managed(&matrixB, sizeB, validating);
+            setup_managed(&matrixC, sizeC, false);  
         }
         
         prefetch_page_tiled::multiGPU<false, array_type, page_size, sm_count>(
@@ -1535,12 +1632,16 @@ int main(int argc, char** argv){
         );
 
         if (standalone) {
-            free_ABC_managed(&matrixA, &matrixB, &matrixC);
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
         }
 
         for (int run=0; run<runs; run++) {
             if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                setup_managed(&matrixA, sizeA, validating);
+                setup_managed(&matrixB, sizeB, validating);
+                setup_managed(&matrixC, sizeC, false);
             }
 
             timing_ms[run] = prefetch_page_tiled::multiGPU<
@@ -1584,7 +1685,9 @@ int main(int argc, char** argv){
             }
 
             if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                free_managed(&matrixA);
+                free_managed(&matrixB);
+                free_managed(&matrixC);
             }
         }
 

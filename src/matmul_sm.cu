@@ -9,8 +9,6 @@
 #include "shared_cuda.cu.h"
 #include "shared.h"
 
-typedef float array_type;
-
 void setup_ABC_managed(
     array_type** matrixA, const unsigned long int sizeA,
     array_type** matrixB, const unsigned long int sizeB,

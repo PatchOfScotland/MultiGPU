@@ -7,8 +7,6 @@
 #include <math.h>
 
 
-typedef float array_type;
-
 float get_throughput(float mean_ms, double data_gigabytes) {
     float mean_seconds = mean_ms * 1e-6f;
     return (float)data_gigabytes / mean_seconds;

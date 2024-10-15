@@ -2,8 +2,6 @@
 #include "shared_cuda.cu.h"
 #include "shared.h"
 
-typedef float array_type;
-
 template <class T> 
 __global__ void kernel(
     const T *matrixA, T* const matrixB, const int array_w, const int array_h, 

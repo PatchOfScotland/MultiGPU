@@ -1,7 +1,7 @@
 #Aarhus
-#FLAGS=-Xcompiler -fopenmp -O3 -arch=native
+FLAGS=-Xcompiler -fopenmp -O3 -arch=native
 #Hendirx
-FLAGS=-Xcompiler -fopenmp -O3
+#FLAGS=-Xcompiler -fopenmp -O3
 PROGRAMS=map reduce matmul
 BUILD_DIR=default
 
@@ -18,10 +18,6 @@ reduce:
 matmul:
 	mkdir -p build/$(BUILD_DIR)
 	nvcc src/matmul.cu -o $^ build/$(BUILD_DIR)/matmul $(FLAGS)
-
-memtest:
-	mkdir -p build/$(BUILD_DIR)
-	nvcc src/memtest.cu -o $^ build/$(BUILD_DIR)/memtest $(FLAGS)
 
 matmul_sm:
 	mkdir -p build/$(BUILD_DIR)

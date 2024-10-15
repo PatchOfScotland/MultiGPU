@@ -8,8 +8,6 @@
 #include "shared_cuda.cu.h"
 #include "shared.h"
 
-typedef float array_type;
-
 template<typename T>
 class PlusX {
     public:

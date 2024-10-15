@@ -14,6 +14,8 @@
 #define MEMCPY              1
 #define DUPLICATE           2
 
+typedef float array_type;
+
 const auto processor_count = std::thread::hardware_concurrency();
 
 float get_throughput(float timing_microseconds, double data_bytes) {
@@ -79,6 +81,7 @@ template<class T>
 void init_matrix_linear(T* data, uint64_t size) {
     for (uint64_t i = 0; i < size; i++)
         data[i] = i;
+        
 }
 
 template<class T>
@@ -177,13 +180,16 @@ void print_matrix(T* matrix, size_t width, size_t height) {
     for (int c=0; c<height; c++) {
         for (int r=0; r<width; r++) {
             if (r==0) {
-                std::cout << matrix[r+(width*c)];
+                printf("%8f", matrix[r+(width*c)]);
+                //std::cout << matrix[r+(width*c)];
             }
             else if (r==width-1) {
-                std::cout << ", " << matrix[r+(width*c)] << "\n";
+                printf(", %8f\n", matrix[r+(width*c)]);
+                //std::cout << ", " << matrix[r+(width*c)] << "\n";
             }
             else {
-                std::cout << ", " << matrix[r+(width*c)];
+                printf(", %8f", matrix[r+(width*c)]);
+                //std::cout << ", " << matrix[r+(width*c)];
             }
         }
     }
@@ -323,6 +329,103 @@ bool in_range(T num1, T num2, T tolerance) {
         return true;
     }
     return false;
+}
+
+template<class T>
+void setup_managed(
+    T** matrix, const unsigned long int size, bool validating
+) {
+    CCC(cudaMallocManaged(matrix, size*sizeof(T)));
+    if (validating) {
+        init_matrix<T>(*matrix, size);
+    }
+}
+
+template<class T>
+void setup_malloced(
+    T** matrix, const unsigned long int size, bool validating
+) {
+    *matrix = (T*)calloc(size, sizeof(T));
+    if (validating) {
+        init_matrix<T>(*matrix, size);
+    }
+}
+
+template<class T>
+void setup_managed_array(
+    T** matrix, T** array, 
+    const unsigned long int size, const int device_count,
+    bool validating
+) {
+    array[0] = *matrix;
+    for (int i=1; i<device_count; i++) {
+        CCC(cudaMallocManaged(&array[i], size*sizeof(T)));
+        if (validating) {
+            duplicate_matrix(array[0], size, array[i]);
+        }
+    }
+}
+
+template<class T>
+void setup_AsBsCs_managed(
+    T** matrixA, T** matrixAs, const int sizeSplitA,
+    T** matrixB, T** matrixBs, const int sizeB,
+    T** matrixCs, const int sizeSplitC, const int device_count,
+    bool validating
+) {
+    for (int device=0; device<device_count; device++) {
+        CCC(cudaMallocManaged(&matrixAs[device], sizeSplitA*sizeof(T)));
+        CCC(cudaMallocManaged(&matrixBs[device], sizeB*sizeof(T)));
+        CCC(cudaMallocManaged(&matrixCs[device], sizeSplitC*sizeof(T)));
+        if (validating) {
+            duplicate_matrix(*matrixA+(sizeSplitA*device), sizeSplitA, matrixAs[device]);
+            duplicate_matrix(*matrixB, sizeB, matrixBs[device]);
+        }
+    }
+}
+
+template<class T>
+void setup_trans_managed(
+    T** input_matrix, T** output_matrix, 
+    const unsigned long int width, const unsigned long int height,
+    bool validating
+) {
+    setup_managed(output_matrix, width*height, false);
+    transpose_matrix(*input_matrix, width, height, *output_matrix);
+}
+
+template<class T>
+void free_managed( 
+    T** matrix
+) {
+    CCC(cudaFree(*matrix));
+}
+
+template<class T>
+void free_malloced( 
+    T** matrix
+) {
+    free(*matrix);
+}
+
+template<class T>
+void free_managed_array( 
+    T** array, const int device_count
+) {
+    for (int i=1; i<device_count; i++) {
+        CCC(cudaFree(array[i]));
+    }
+}
+
+template<class T>
+void free_malloced_array( 
+    T** array, const int origin_device, const int device_count
+) {
+    for (int i=0; i<device_count; i++) {
+        CCC(cudaSetDevice(i));
+        CCC(cudaFree(array[i]));
+    }   
+    CCC(cudaSetDevice(origin_device));
 }
 
 #endif

@@ -15,6 +15,7 @@
 #define WARP        (1<<lgWARP)
 
 const size_t BLOCK_SIZE = 1024;
+const size_t BLOCK_N = 32;
 const size_t PARALLEL_BLOCKS = 65535;
 const size_t ELEMENTS_PER_THREAD = 12;
 const size_t TILE_SIZE = 16;

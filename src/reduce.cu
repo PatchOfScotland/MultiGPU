@@ -7,7 +7,6 @@
 #include "shared_cuda.cu.h"
 #include "shared.h"
 
-typedef float array_type;
 typedef double return_type;
 
 template<typename I, typename R>
