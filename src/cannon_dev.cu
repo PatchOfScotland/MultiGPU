@@ -158,6 +158,8 @@ int main(int argc, char** argv){
     else {
         if (true) { // Benchmark cannon multi GPU on device basis
             std::cout << "\nBenchmarking cannon multi GPU on device basis *****\n";
+                
+            const size_t quadrants_per_dim = 4;
 
             std::cout << "  Running a warmup\n";
 
@@ -165,13 +167,16 @@ int main(int argc, char** argv){
                 setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
             }
 
-            //cannon::multiGPU<array_type, cannon_block, quadrants_per_dim>(
-            //    matrixA, matrixB, matrixC, widthC, devices
-            //);
+            cannon::multiGPU<array_type, BLOCK_N>(
+                matrixA, matrixB, matrixC, widthC, devices, 
+                quadrants_per_dim, false
+            );
 
             if (standalone) {
                 free_ABC_managed(&matrixA, &matrixB, &matrixC);
             }
+
+            bool zero_c = false;
 
             for (int run=0; run<runs; run++) {
                 if (standalone) {
@@ -179,10 +184,13 @@ int main(int argc, char** argv){
                     zero_matrix(matrixC, widthC* heightC);
                 }
 
-                const size_t quadrants_per_dim = 3;
+                if ((validating) && (run==runs-1)) {
+                    zero_c = true;
+                }
 
                 timing_ms[run] = cannon::multiGPU<array_type, BLOCK_N>(
-                    matrixA, matrixB, matrixC, widthC, devices, quadrants_per_dim
+                    matrixA, matrixB, matrixC, widthC, devices, 
+                    quadrants_per_dim, zero_c
                 );
 
                 if (reduced_output == false) {
@@ -210,8 +218,8 @@ int main(int argc, char** argv){
                             matrixB, widthB, heightB, 
                             matrixC, split
                         );
-                        //std::cout << "Reference: \n";
-                        //print_matrix(matrixC, widthC, heightC);
+                        std::cout << "Reference: \n";
+                        print_matrix(matrixC, widthC, heightC);
                     }
                 }
 

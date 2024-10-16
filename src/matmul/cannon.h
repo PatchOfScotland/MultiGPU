@@ -135,9 +135,11 @@ namespace cannon {
             T* matrixA, T* matrixB, T* matrixC, const unsigned int quadrant_n, 
             const int device, const size_t quadrants_per_dim, int quadrants,
             const int a_write, const int b_write,
-            const int a_read, const int b_read
+            const int a_read, const int b_read,
+            const int debug_quadrant
     ) {
         cudaSetDevice(device);
+        //printf("Running on device %d\n", device);
 
         unsigned int dim_x = (quadrant_n + TL - 1) / TL; 
         unsigned int dim_y = (quadrant_n + TL - 1) / TL;
@@ -161,7 +163,7 @@ namespace cannon {
                 exit(cudaError);
             }
 
-            if (iteration != quadrants_per_dim-1) {
+            if (iteration != quadrants_per_dim-1) {              
                 synchronize(quadrants);
             
                 matrixAs[a_write] = matrixA;
@@ -178,7 +180,7 @@ namespace cannon {
     template<typename T, int TL>
     float multiGPU(
         T* matrixA, T* matrixB, T* matrixC, unsigned int n,
-        const int device_count, const size_t quadrants_per_dim
+        const int device_count, const size_t quadrants_per_dim, bool zero_c
     ) {
         int origin_device;
         CCC(cudaGetDevice(&origin_device));
@@ -194,6 +196,10 @@ namespace cannon {
 
         matrixAs = (T**)malloc(sizeof(T*)*quadrants);
         matrixBs = (T**)malloc(sizeof(T*)*quadrants);
+
+        if (zero_c == true) {
+            zero_matrix(matrixC, n*n);
+        }
 
         unsigned int quadrant_size = quadrant_n * quadrant_n;
 
@@ -215,15 +221,17 @@ namespace cannon {
             int bx_write = (x + quadrants_per_dim - 1) % quadrants_per_dim;
             int by_write = y;
 
-            int ax_read = x;
-            int ay_read = (y + 1) % quadrants_per_dim;
-            int bx_read = (x + 1) % quadrants_per_dim;
-            int by_read = y;
+            //int ax_read = x;
+            //int ay_read = (y + 1) % quadrants_per_dim;
+            //int bx_read = (x + 1) % quadrants_per_dim;
+            //int by_read = y;
 
             unsigned int quadrant_a_write = (ax_write * quadrants_per_dim) + ay_write;
             unsigned int quadrant_b_write = (bx_write * quadrants_per_dim) + by_write;
-            unsigned int quadrant_a_read = (ax_read * quadrants_per_dim) + ay_read;
-            unsigned int quadrant_b_read = (bx_read * quadrants_per_dim) + by_read;
+            //unsigned int quadrant_a_read = (ax_read * quadrants_per_dim) + ay_read;
+            //unsigned int quadrant_b_read = (bx_read * quadrants_per_dim) + by_read;
+            unsigned int quadrant_a_read = quadrant;
+            unsigned int quadrant_b_read = quadrant;
             
             int k = (x + y) % quadrants_per_dim;
 
@@ -231,6 +239,12 @@ namespace cannon {
             unsigned int quadrant_offset_b = (quadrant_size * (y + (k * quadrants_per_dim)));
             unsigned int quadrant_offset_c = (quadrant_size * (y + (x * quadrants_per_dim)));
             
+            //printf("Quadrant %d is: %d\n", quadrant, quadrant);
+            //printf("Quadrant %d starts with A: %d, B: %d, C: %d\n", quadrant, quadrant_offset_a, quadrant_offset_b, quadrant_offset_c);
+            //printf("Quadrant %d writing A to: %d, B to: %d, \n", quadrant, quadrant_a_write, quadrant_b_write);
+            //printf("Quadrant %d reading A from: %d, B from: %d, \n", quadrant, quadrant_a_read, quadrant_b_read);
+            //printf("Quadrant %d Should just read A from: %d, B from: %d, \n", quadrant, quadrant, quadrant);
+
             threads[quadrant] = std::thread(
                 per_quadrant_management<T, TL>,
                 matrixA + quadrant_offset_a, 
@@ -238,7 +252,8 @@ namespace cannon {
                 matrixC + quadrant_offset_c, 
                 quadrant_n, device, quadrants_per_dim, quadrants,
                 quadrant_a_write, quadrant_b_write, 
-                quadrant_a_read, quadrant_b_read
+                quadrant_a_read, quadrant_b_read,
+                quadrant
             );
 
             y += 1;

@@ -99,7 +99,6 @@ bool cpuValidation(
 ) {
 
     T* debug = (T*)calloc(widthA*heightA, sizeof(T));
-
     unsigned long int count = 0;
     #pragma omp parallel for collapse(2) reduction(+:count)
     for(int i = 0; i < heightA; ++i) {

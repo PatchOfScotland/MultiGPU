@@ -118,7 +118,7 @@ int z_order(T* input,  T* output, size_t width, size_t height, int split) {
     int tileCountX = width/split;
     int tileCountY = height/split;
 
-    //#pragma omp parallel for collapse(4)
+    #pragma omp parallel for collapse(4)
     for (int tileX=0; tileX<tileCountX; tileX++) {
         for (int tileY=0; tileY<tileCountY; tileY++) {
             for (int tileInnerX=0; tileInnerX<split; tileInnerX++) {
@@ -337,7 +337,8 @@ void setup_managed(
 ) {
     CCC(cudaMallocManaged(matrix, size*sizeof(T)));
     if (validating) {
-        init_matrix<T>(*matrix, size);
+        //init_matrix<T>(*matrix, size);
+        init_matrix_linear<T>(*matrix, size);
     }
 }
 

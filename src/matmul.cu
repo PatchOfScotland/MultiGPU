@@ -26,6 +26,35 @@ void validate(
     }
 }
 
+void validateZorder(
+    array_type** matrixA, const unsigned int widthA, const unsigned int heightA,
+    array_type** matrixB, const unsigned int widthB, const unsigned int heightB,
+    array_type** matrixC, array_type tolerance, int split
+) {
+    array_type* matrixAz = (array_type*)malloc(widthA*heightA*sizeof(array_type));
+    array_type* matrixBz = (array_type*)malloc(widthB*heightB*sizeof(array_type));
+    array_type* matrixCz = (array_type*)malloc(widthB*heightB*sizeof(array_type));
+
+    z_order<array_type>(*matrixA, matrixAz, widthA, heightA, split);
+    z_order<array_type>(*matrixB, matrixBz, widthB, heightB, split);
+    z_order<array_type>(*matrixC, matrixCz, widthB, heightB, split);
+
+    if(cpuValidation<array_type>(
+        matrixAz, widthA, heightA, 
+        matrixBz, widthB, heightB, 
+        matrixCz, tolerance
+    )){
+        std::cout << "  Result is correct\n";
+    } else {
+        std::cout << "  Result is incorrect. Skipping any "
+                  << "subsequent runs\n";
+    }
+
+    free(matrixAz);
+    free(matrixBz);
+    free(matrixCz);
+}
+
 int main(int argc, char** argv){
     if (argc < 5)
     {
@@ -1230,7 +1259,8 @@ int main(int argc, char** argv){
             }
 
             cannon::multiGPU<array_type, TILE_SIZE>(
-                matrixA, matrixB, matrixC, widthC, devices, quadrants_per_dim
+                matrixA, matrixB, matrixC, widthC, devices, 
+                quadrants_per_dim, false
             );
 
             if (standalone) {
@@ -1238,6 +1268,8 @@ int main(int argc, char** argv){
                 free_managed(&matrixB);
                 free_managed(&matrixC);
             }
+
+            bool zero_c = false;
 
             for (int run=0; run<runs; run++) {
                 if (standalone) {
@@ -1249,8 +1281,13 @@ int main(int argc, char** argv){
 
                 const size_t quadrants_per_dim = 2;
 
+                if ((validating) && (run==runs-1)) {
+                    zero_c = true;
+                }
+
                 timing_ms[run] = cannon::multiGPU<array_type, TILE_SIZE>(
-                    matrixA, matrixB, matrixC, widthC, devices, quadrants_per_dim
+                    matrixA, matrixB, matrixC, widthC, devices, 
+                    quadrants_per_dim, zero_c
                 );
 
                 if (reduced_output == false) {
@@ -1261,18 +1298,18 @@ int main(int argc, char** argv){
                 // the host. Just use datasize_GB as crude tolerance for now.
                 if ((validating) && (run==runs-1)) {
                     const int split = widthC / quadrants_per_dim;
-                    validate(
+                    validateZorder(
                         &matrixA, widthA, heightA, 
                         &matrixB, widthB, heightB, 
-                        &matrixC, datasize_bytes/1e9
+                        &matrixC, datasize_bytes/1e9, split
                     );
                     if (false) {
-                        //std::cout << "Input A: \n";
-                        //print_matrix(matrixA, widthA, heightA);
-                        //std::cout << "Input B: \n";
-                        //print_matrix(matrixB, widthB, heightB);
+                        std::cout << "Input A: \n";
+                        print_matrix_z(matrixA, widthA, quadrants_per_dim);
+                        std::cout << "Input B: \n";
+                        print_matrix_z(matrixB, widthB, quadrants_per_dim);
                         std::cout << "Result: \n";
-                        print_matrix(matrixC, widthC, heightC);
+                        print_matrix_z(matrixC, widthC, quadrants_per_dim);
                         cpuMatMulZorder<array_type>(
                             matrixA, widthA, heightA, 
                             matrixB, widthB, heightB, 
@@ -1308,7 +1345,8 @@ int main(int argc, char** argv){
             }
 
             cannon::multiGPU<array_type, TILE_SIZE>(
-                matrixA, matrixB, matrixC, widthC, devices, quadrants_per_dim
+                matrixA, matrixB, matrixC, widthC, devices, 
+                quadrants_per_dim, false
             );
 
             if (standalone) {
@@ -1316,6 +1354,8 @@ int main(int argc, char** argv){
                 free_managed(&matrixB);
                 free_managed(&matrixC);
             }
+
+            bool zero_c = false;
 
             for (int run=0; run<runs; run++) {
                 if (standalone) {
@@ -1327,8 +1367,13 @@ int main(int argc, char** argv){
 
                 const size_t quadrants_per_dim = 2;
 
+                if ((validating) && (run==runs-1)) {
+                    zero_c = true;
+                }
+
                 timing_ms[run] = cannon::multiGPU<array_type, TILE_SIZE>(
-                    matrixA, matrixB, matrixC, widthC, devices, quadrants_per_dim
+                    matrixA, matrixB, matrixC, widthC, devices, 
+                    quadrants_per_dim, zero_c
                 );
 
                 if (reduced_output == false) {
@@ -1339,18 +1384,18 @@ int main(int argc, char** argv){
                 // the host. Just use datasize_GB as crude tolerance for now.
                 if ((validating) && (run==runs-1)) {
                     const int split = widthC / quadrants_per_dim;
-                    validate(
+                    validateZorder(
                         &matrixA, widthA, heightA, 
                         &matrixB, widthB, heightB, 
-                        &matrixC, datasize_bytes/1e9
+                        &matrixC, datasize_bytes/1e9, split
                     );
                     if (false) {
-                        //std::cout << "Input A: \n";
-                        //print_matrix(matrixA, widthA, heightA);
-                        //std::cout << "Input B: \n";
-                        //print_matrix(matrixB, widthB, heightB);
+                        std::cout << "Input A: \n";
+                        print_matrix_z(matrixA, widthA, quadrants_per_dim);
+                        std::cout << "Input B: \n";
+                        print_matrix_z(matrixB, widthB, quadrants_per_dim);
                         std::cout << "Result: \n";
-                        print_matrix(matrixC, widthC, heightC);
+                        print_matrix_z(matrixC, widthC, quadrants_per_dim);
                         cpuMatMulZorder<array_type>(
                             matrixA, widthA, heightA, 
                             matrixB, widthB, heightB, 
