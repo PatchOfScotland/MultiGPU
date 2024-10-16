@@ -150,88 +150,103 @@ int main(int argc, char** argv){
     
     setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
 
+    int test_limit = 8;
     float* timing_ms = (float*)calloc(runs, sizeof(float));
+    char** titles = (char**)malloc(test_limit * sizeof(char*));
+    for (int i=0; i<test_limit; i++) {
+        titles[i] = (char*)malloc(20);
+    }
 
     if ((widthA != heightA) || (widthA != widthB) || (widthA != heightB)) {
         std::cout << "Cannot run cannon algorithm for uneven matrix sizes\n";
     }
     else {
-        if (true) { // Benchmark cannon multi GPU on device basis
-            std::cout << "\nBenchmarking cannon multi GPU on device basis *****\n";
-                
-            const size_t quadrants_per_dim = 4;
+        for (size_t quadrants_per_dim=1; quadrants_per_dim<=test_limit; quadrants_per_dim++) { 
+            if (true) { // Benchmark cannon multi GPU on device basis
+                std::cout << "\nBenchmarking cannon multi GPU on device basis with " <<  quadrants_per_dim << " quadrants per dimension *****\n";
+                    
+                std::cout << "  Running a warmup\n";
 
-            std::cout << "  Running a warmup\n";
-
-            if (standalone) {
-                setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
-            }
-
-            cannon::multiGPU<array_type, BLOCK_N>(
-                matrixA, matrixB, matrixC, widthC, devices, 
-                quadrants_per_dim, false
-            );
-
-            if (standalone) {
-                free_ABC_managed(&matrixA, &matrixB, &matrixC);
-            }
-
-            bool zero_c = false;
-
-            for (int run=0; run<runs; run++) {
                 if (standalone) {
                     setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
-                    zero_matrix(matrixC, widthC* heightC);
                 }
 
-                if ((validating) && (run==runs-1)) {
-                    zero_c = true;
-                }
-
-                timing_ms[run] = cannon::multiGPU<array_type, BLOCK_N>(
+                cannon::multiGPU<array_type, BLOCK_N>(
                     matrixA, matrixB, matrixC, widthC, devices, 
-                    quadrants_per_dim, zero_c
+                    quadrants_per_dim, false
                 );
-
-                if (reduced_output == false) {
-                    print_loop_feedback(run, runs);
-                }
-
-                // do this at the end as reading output array will shift it back to 
-                // the host. Just use datasize_GB as crude tolerance for now.
-                if ((validating) && (run==runs-1)) {
-                    const int split = widthC / quadrants_per_dim;
-                    validateZorder(
-                        &matrixA, widthA, heightA, 
-                        &matrixB, widthB, heightB, 
-                        &matrixC, datasize_bytes/1e9, split
-                    );
-                    if (false) {
-                        std::cout << "Input A: \n";
-                        print_matrix_z(matrixA, widthA, quadrants_per_dim);
-                        std::cout << "Input B: \n";
-                        print_matrix_z(matrixB, widthB, quadrants_per_dim);
-                        std::cout << "Result: \n";
-                        print_matrix_z(matrixC, widthC, quadrants_per_dim);
-                        cpuMatMulZorder<array_type>(
-                            matrixA, widthA, heightA, 
-                            matrixB, widthB, heightB, 
-                            matrixC, split
-                        );
-                        std::cout << "Reference: \n";
-                        print_matrix(matrixC, widthC, heightC);
-                    }
-                }
 
                 if (standalone) {
                     free_ABC_managed(&matrixA, &matrixB, &matrixC);
                 }
+
+                bool zero_c = false;
+
+                for (int run=0; run<runs; run++) {
+                    if (standalone) {
+                        setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
+                        zero_matrix(matrixC, widthC* heightC);
+                    }
+
+                    if ((validating) && (run==runs-1)) {
+                        zero_c = true;
+                    }
+
+                    timing_ms[run] = cannon::multiGPU<array_type, BLOCK_N>(
+                        matrixA, matrixB, matrixC, widthC, devices, 
+                        quadrants_per_dim, zero_c
+                    );
+
+                    if (reduced_output == false) {
+                        print_loop_feedback(run, runs);
+                    }
+
+                    // do this at the end as reading output array will shift it back to 
+                    // the host. Just use datasize_GB as crude tolerance for now.
+                    if ((validating) && (run==runs-1)) {
+                        const int split = widthC / quadrants_per_dim;
+                        validateZorder(
+                            &matrixA, widthA, heightA, 
+                            &matrixB, widthB, heightB, 
+                            &matrixC, datasize_bytes/1e9, split
+                        );
+                        if (false) {
+                            std::cout << "Input A: \n";
+                            print_matrix_z(matrixA, widthA, quadrants_per_dim);
+                            std::cout << "Input B: \n";
+                            print_matrix_z(matrixB, widthB, quadrants_per_dim);
+                            std::cout << "Result: \n";
+                            print_matrix_z(matrixC, widthC, quadrants_per_dim);
+                            cpuMatMulZorder<array_type>(
+                                matrixA, widthA, heightA, 
+                                matrixB, widthB, heightB, 
+                                matrixC, split
+                            );
+                            std::cout << "Reference: \n";
+                            print_matrix(matrixC, widthC, heightC);
+                        }
+                    }
+
+                    if (standalone) {
+                        free_ABC_managed(&matrixA, &matrixB, &matrixC);
+                    }
+                }
+
+                memcpy((void*)titles[quadrants_per_dim-1], "cannon multi GPU \0\0\0", 20);
+
+                titles[quadrants_per_dim-1][17] = quadrants_per_dim + '0';
+            
+                update_and_print_timing_stats(
+                    timing_ms, runs, titles[quadrants_per_dim-1], &all_timings, &timings, 
+                    operations, datasize_bytes
+                );
             }
-        
-            update_and_print_timing_stats(
-                timing_ms, runs, "cannon multi GPU\0", &all_timings, &timings, 
-                operations, datasize_bytes
-            );
         }        
     }
+
+    free(timing_ms);
+    for (int i=0; i<test_limit; i++) {
+        free(titles[i]);
+    }
+    free(titles);
 }
