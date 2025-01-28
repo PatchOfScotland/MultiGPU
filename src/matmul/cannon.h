@@ -146,17 +146,45 @@ namespace cannon {
 
         dim3 dimBlock(TL, TL, 1);      // threads per block
         dim3 dimGrid(dim_x, dim_y, 1); // blockcount
+
+        printf("Quadrant: %d is scheduling %dx%dx%d (%d) blocks each of %d threads\n", debug_quadrant, dimGrid.x, dimGrid.y, dimGrid.z, dimGrid.x*dimGrid.y*dimGrid.z, dimBlock.x*dimBlock.y*dimBlock.z);
       
         for (int iteration=0; iteration<quadrants_per_dim; iteration++) {
             cudaEvent_t sync_event;
             CCC(cudaEventCreate(&sync_event));
+            
+            cudaError_t cudaError = cudaPeekAtLastError();
+            if (cudaError != cudaSuccess) {
+                std::cerr << "CUDA beansed it\n" << cudaError << "\n";
+                std::cerr << cudaGetErrorString(cudaError) << "\n";
+                exit(cudaError);
+            }
+
+            
             mmmNaiveKernelAdditive<T> <<<dimGrid, dimBlock>>>(
                 matrixA, matrixB, matrixC, quadrant_n
             );
+
+         cudaError = cudaPeekAtLastError();
+            if (cudaError != cudaSuccess) {
+                std::cerr << "CUDA beansed it\n" << cudaError << "\n";
+                std::cerr << cudaGetErrorString(cudaError) << "\n";
+                exit(cudaError);
+            }
+
             CCC(cudaEventRecord(sync_event));
+            
+         cudaError = cudaPeekAtLastError();
+            if (cudaError != cudaSuccess) {
+                std::cerr << "CUDA beansed it\n" << cudaError << "\n";
+                std::cerr << cudaGetErrorString(cudaError) << "\n";
+                exit(cudaError);
+            }
+
+
             CCC(cudaEventSynchronize(sync_event));
 
-            cudaError_t cudaError = cudaPeekAtLastError();
+         cudaError = cudaPeekAtLastError();
             if (cudaError != cudaSuccess) {
                 std::cerr << "CUDA beansed it\n" << cudaError << "\n";
                 std::cerr << cudaGetErrorString(cudaError) << "\n";
