@@ -89,7 +89,7 @@ int main(int argc, char** argv){
     CCC(cudaMallocManaged(&output_array, array_len*sizeof(array_type)));
     init_sparse_array(input_array, array_len, 10000);
 
-    float* timing_ms = (float*)calloc(runs, sizeof(float));
+    float* timing_μs = (float*)calloc(runs, sizeof(float));
 
     if (true) { // Get CPU baseline
         std::cout << "Getting CPU baseline\n";
@@ -99,10 +99,10 @@ int main(int argc, char** argv){
         cpu_time.timing_microseconds = cpuMapping<PlusX<array_type>>(
             input_array, constant, output_array, array_len
         );  
-        timing_ms[0] = cpu_time.timing_microseconds;  
+        timing_μs[0] = cpu_time.timing_microseconds;  
 
         update_timing_stats(
-            timing_ms, 1, "CPU\0", &all_timings, &timings, operations, 
+            timing_μs, 1, "CPU\0", &all_timings, &timings, operations, 
             datasize_bytes
         );
 
@@ -141,7 +141,7 @@ int main(int argc, char** argv){
                 init_sparse_array(input_array, array_len, 10000);
             }
 
-            timing_ms[run] = singleGpuMapping<PlusX<array_type>>(
+            timing_μs[run] = singleGpuMapping<PlusX<array_type>>(
                 input_array, constant, output_array, array_len
             );
 
@@ -170,7 +170,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "single GPU", &all_timings, &timings, operations, 
+            timing_μs, runs, "single GPU", &all_timings, &timings, operations, 
             datasize_bytes
         );
     }
@@ -202,7 +202,7 @@ int main(int argc, char** argv){
                 init_sparse_array(input_array, array_len, 10000);
             }
 
-            timing_ms[run] = multiGpuMapping<PlusX<array_type>>(
+            timing_μs[run] = multiGpuMapping<PlusX<array_type>>(
                 input_array, constant, output_array, array_len, devices
             );
 
@@ -231,7 +231,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "multi GPU", &all_timings, &timings, operations, 
+            timing_μs, runs, "multi GPU", &all_timings, &timings, operations, 
             datasize_bytes
         );
     }
@@ -273,7 +273,7 @@ int main(int argc, char** argv){
                 init_sparse_array(input_array, array_len, 10000);
             }
 
-            timing_ms[run] = multiGpuStreamMapping<PlusX<array_type>>(
+            timing_μs[run] = multiGpuStreamMapping<PlusX<array_type>>(
                 input_array, constant, output_array, array_len, streams, 
                 devices
             );
@@ -303,7 +303,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "stream GPU", &all_timings, &timings, operations, 
+            timing_μs, runs, "stream GPU", &all_timings, &timings, operations, 
             datasize_bytes
         );
 
@@ -336,7 +336,7 @@ int main(int argc, char** argv){
                 init_sparse_array(input_array, array_len, 10000);
             }
 
-            timing_ms[run] = multiGpuMapping<PlusX<array_type>>(
+            timing_μs[run] = multiGpuMapping<PlusX<array_type>>(
                 input_array, constant, output_array, array_len, devices, true
             );
 
@@ -365,7 +365,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "hint GPU", &all_timings, &timings, operations, 
+            timing_μs, runs, "hint GPU", &all_timings, &timings, operations, 
             datasize_bytes
         );
     }

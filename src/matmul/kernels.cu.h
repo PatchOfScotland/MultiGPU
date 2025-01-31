@@ -97,9 +97,11 @@ __global__ void mmmNaiveKernelAdditive(
 
     T accumulator = 0.0f;
     for(int k = 0; k < n; k ++) {
+//    for(int k = 0; k < 1; k ++) {
         T a = getElement<false, T>(y, k, matrixA, n, n);
         T b = getElement<false, T>(k, x, matrixB, n, n);
         accumulator += a*b;
+//        accumulator += a;
     }
 
     matrixC[y*n + x] += accumulator;
@@ -216,8 +218,8 @@ __global__ void mmmCannonQuadrant(
 ) {
   // Allocate shared memory for the two blocks aSub and bSub.
   // Use two-dimensional matrices of size BLOCK_SIZE * BLOCK_SIZE
-  __shared__ double aSub[cannon_block][cannon_block];
-  __shared__ double bSub[cannon_block][cannon_block];
+  double aSub[cannon_block][cannon_block];
+  double bSub[cannon_block][cannon_block];
 
   const int Bx_offset = blockIdx.x * cannon_block + threadIdx.x + offset_x;
   const int Ay_offset = blockIdx.y * cannon_block + threadIdx.y + offset_y;
@@ -236,13 +238,8 @@ __global__ void mmmCannonQuadrant(
     else
       bSub[threadIdx.y][threadIdx.x] = 0;
 
-    __syncthreads(); // Make sure that all threads had time to read the sub
-                     // matrix.
-
     for (int i = 0; i < cannon_block; i++)
       tmp += aSub[threadIdx.y][i] * bSub[i][threadIdx.x];
-
-    __syncthreads();
   }
   if (((Bx_offset) < total_n) && ((Ay_offset) < total_n)) {
     matrixC[(Bx_offset) + (total_n * (Ay_offset))] = tmp;

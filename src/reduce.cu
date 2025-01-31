@@ -135,7 +135,7 @@ int main(int argc, char** argv){
     CCC(cudaMallocManaged(&output, sizeof(return_type)));
     init_sparse_array(input_array, array_len, 10000);
 
-    float* timing_ms = (float*)calloc(runs, sizeof(float));
+    float* timing_μs = (float*)calloc(runs, sizeof(float));
 
     if (true) { // Get CPU baseline
         std::cout << "Getting CPU result\n";
@@ -145,7 +145,7 @@ int main(int argc, char** argv){
         cpu_time.timing_microseconds = cpuReduction<Add<array_type,return_type>>(
             input_array, &validation_result, array_len
         );
-        timing_ms[0] = cpu_time.timing_microseconds;  
+        timing_μs[0] = cpu_time.timing_microseconds;  
 
         if (standalone) {
             CCC(cudaFree(input_array));
@@ -153,7 +153,7 @@ int main(int argc, char** argv){
         }
 
         update_timing_stats(
-            timing_ms, 1, "CPU\0", &all_timings, &timings, operations, 
+            timing_μs, 1, "CPU\0", &all_timings, &timings, operations, 
             datasize_bytes
         );
 
@@ -188,7 +188,7 @@ int main(int argc, char** argv){
                 init_sparse_array(input_array, array_len, 10000);
             }
 
-            timing_ms[run] = singleGpuReduction<Add<array_type,return_type>>(
+            timing_μs[run] = singleGpuReduction<Add<array_type,return_type>>(
                 input_array, output, array_len
             );
 
@@ -226,7 +226,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "commutative single GPU", &all_timings, 
+            timing_μs, runs, "commutative single GPU", &all_timings, 
             &timings, operations, datasize_bytes
         );
     }
@@ -257,7 +257,7 @@ int main(int argc, char** argv){
                 init_sparse_array(input_array, array_len, 10000);
             }
 
-            timing_ms[run] = multiGpuReduction<Add<array_type,return_type>>(
+            timing_μs[run] = multiGpuReduction<Add<array_type,return_type>>(
                 input_array, output, array_len, devices
             );
 
@@ -294,7 +294,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "commutative multi GPU", &all_timings, 
+            timing_μs, runs, "commutative multi GPU", &all_timings, 
             &timings, operations, datasize_bytes
         );
     }
@@ -325,7 +325,7 @@ int main(int argc, char** argv){
                 init_sparse_array(input_array, array_len, 10000);
             }
 
-            timing_ms[run] = multiGpuReduction<Add<array_type,return_type>>(
+            timing_μs[run] = multiGpuReduction<Add<array_type,return_type>>(
                 input_array, output, array_len, devices, true
             );
 
@@ -363,7 +363,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "commutative hint GPU", &all_timings, 
+            timing_μs, runs, "commutative hint GPU", &all_timings, 
             &timings, operations, datasize_bytes
         );
     }
@@ -395,7 +395,7 @@ int main(int argc, char** argv){
                 init_sparse_array(input_array, array_len, 10000);
             }
 
-            timing_ms[run] = singleGpuReduction<AddNonCommutative<array_type,return_type>>(
+            timing_μs[run] = singleGpuReduction<AddNonCommutative<array_type,return_type>>(
                 input_array, output, array_len
             );
 
@@ -433,7 +433,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "associative single GPU", &all_timings, 
+            timing_μs, runs, "associative single GPU", &all_timings, 
             &timings, operations, datasize_bytes
         );
     }
@@ -463,7 +463,7 @@ int main(int argc, char** argv){
                 init_sparse_array(input_array, array_len, 10000);
             }
 
-            timing_ms[run] = multiGpuReduction<AddNonCommutative<array_type,return_type>>(
+            timing_μs[run] = multiGpuReduction<AddNonCommutative<array_type,return_type>>(
                 input_array, output, array_len, devices
             );
 
@@ -501,7 +501,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "associative multi GPU", &all_timings, 
+            timing_μs, runs, "associative multi GPU", &all_timings, 
             &timings, operations, datasize_bytes
         );
     }
@@ -532,7 +532,7 @@ int main(int argc, char** argv){
                 init_sparse_array(input_array, array_len, 10000);
             }
 
-            timing_ms[run] = multiGpuReduction<AddNonCommutative<array_type,return_type>>(
+            timing_μs[run] = multiGpuReduction<AddNonCommutative<array_type,return_type>>(
                 input_array, output, array_len, devices, true
             );
 
@@ -569,7 +569,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "associative hint GPU", &all_timings, 
+            timing_μs, runs, "associative hint GPU", &all_timings, 
             &timings, operations, datasize_bytes
         );
     }

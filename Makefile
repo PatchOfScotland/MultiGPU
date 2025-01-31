@@ -1,8 +1,8 @@
 #Aarhus
-FLAGS=-Xcompiler -fopenmp -O3 -arch=native
+FLAGS=-Xcompiler -fopenmp -O3 -arch=native -lineinfo
 #Hendirx
 #FLAGS=-Xcompiler -fopenmp -O3
-PROGRAMS=map reduce matmul
+PROGRAMS=map reduce matmul matmul_sm cannon_dev
 BUILD_DIR=default
 
 all: $(PROGRAMS)

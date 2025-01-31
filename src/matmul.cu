@@ -35,9 +35,9 @@ void validateZorder(
     array_type* matrixBz = (array_type*)malloc(widthB*heightB*sizeof(array_type));
     array_type* matrixCz = (array_type*)malloc(widthB*heightB*sizeof(array_type));
 
-    z_order<array_type>(*matrixA, matrixAz, widthA, heightA, split);
-    z_order<array_type>(*matrixB, matrixBz, widthB, heightB, split);
-    z_order<array_type>(*matrixC, matrixCz, widthB, heightB, split);
+    block<array_type>(*matrixA, matrixAz, widthA, heightA, split);
+    block<array_type>(*matrixB, matrixBz, widthB, heightB, split);
+    block<array_type>(*matrixC, matrixCz, widthB, heightB, split);
 
     if(cpuValidation<array_type>(
         matrixAz, widthA, heightA, 
@@ -148,7 +148,7 @@ int main(int argc, char** argv){
     setup_managed(&matrixC, sizeC, false);
     setup_trans_managed(&matrixB, &matrixTransB, widthB, heightB, validating);
 
-    float* timing_ms = (float*)calloc(runs, sizeof(float));
+    float* timing_μs = (float*)calloc(runs, sizeof(float));
 
     if (false) { // Get CPU baseline
         std::cout << "Getting CPU result\n";
@@ -160,10 +160,10 @@ int main(int argc, char** argv){
             matrixB, widthB, heightB, 
             matrixC
         );
-        timing_ms[0] = cpu_time.timing_microseconds;
+        timing_μs[0] = cpu_time.timing_microseconds;
         
         update_timing_stats(
-            timing_ms, 1, "CPU\0", &all_timings, &timings, operations, 
+            timing_μs, 1, "CPU\0", &all_timings, &timings, operations, 
             datasize_bytes
         );
 
@@ -217,7 +217,7 @@ int main(int argc, char** argv){
                 setup_managed(&matrixC, sizeC, false);
             }
 
-            timing_ms[run] = tiled::singleGPU<false, false, array_type, TILE_SIZE>(
+            timing_μs[run] = tiled::singleGPU<false, false, array_type, TILE_SIZE>(
                 matrixA, widthA, heightA, 
                 matrixB, widthB, heightB, 
                 matrixC, widthC, heightC
@@ -262,7 +262,7 @@ int main(int argc, char** argv){
         }
         
         update_and_print_timing_stats(
-            timing_ms, runs, "tiled single GPU\0", &all_timings, 
+            timing_μs, runs, "tiled single GPU\0", &all_timings, 
             &timings, operations, datasize_bytes
         );
     }
@@ -298,7 +298,7 @@ int main(int argc, char** argv){
                 setup_managed(&matrixC, sizeC, false);
             }
 
-            timing_ms[run] = tiled::multiGPU<false, false, array_type, TILE_SIZE>(
+            timing_μs[run] = tiled::multiGPU<false, false, array_type, TILE_SIZE>(
                 matrixA, widthA, heightA, 
                 matrixB, widthB, heightB, 
                 matrixC, widthC, heightC,
@@ -343,7 +343,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "tiled multi GPU raw\0", &all_timings, &timings, 
+            timing_μs, runs, "tiled multi GPU raw\0", &all_timings, &timings, 
             operations, datasize_bytes
         );
     }
@@ -379,7 +379,7 @@ int main(int argc, char** argv){
                 setup_managed(&matrixC, sizeC, false);
             }
 
-            timing_ms[run] = tiled::multiGPU<false, false, array_type, TILE_SIZE>(
+            timing_μs[run] = tiled::multiGPU<false, false, array_type, TILE_SIZE>(
                 matrixA, widthA, heightA, 
                 matrixB, widthB, heightB, 
                 matrixC, widthC, heightC,
@@ -408,7 +408,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "tiled multi GPU raw w/ hints\0", &all_timings, 
+            timing_μs, runs, "tiled multi GPU raw w/ hints\0", &all_timings, 
             &timings, operations, datasize_bytes
         );
     }
@@ -444,7 +444,7 @@ int main(int argc, char** argv){
                 setup_managed(&matrixC, sizeC, false);
             }
 
-            timing_ms[run] = tiled::multiGPU<false, false, array_type, TILE_SIZE>(
+            timing_μs[run] = tiled::multiGPU<false, false, array_type, TILE_SIZE>(
                 matrixA, widthA, heightA, 
                 matrixB, widthB, heightB, 
                 matrixC, widthC, heightC,
@@ -473,7 +473,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "tiled multi GPU raw w/ prefetch\0", &all_timings, 
+            timing_μs, runs, "tiled multi GPU raw w/ prefetch\0", &all_timings, 
             &timings, operations, datasize_bytes
         );
 
@@ -514,7 +514,7 @@ int main(int argc, char** argv){
                 setup_managed_array(&matrixB, matrixBs, sizeB, devices, validating);
             }
 
-            timing_ms[run] = tiled::multiGPUduplicate<false, false, array_type, TILE_SIZE>(
+            timing_μs[run] = tiled::multiGPUduplicate<false, false, array_type, TILE_SIZE>(
                 matrixA, widthA, heightA, 
                 matrixBs, widthB, heightB, 
                 matrixC, widthC, heightC,
@@ -548,7 +548,7 @@ int main(int argc, char** argv){
         }
         
         update_and_print_timing_stats(
-            timing_ms, runs, "tiled multi GPU duplicate raw\0", &all_timings, 
+            timing_μs, runs, "tiled multi GPU duplicate raw\0", &all_timings, 
             &timings, operations, datasize_bytes
         );
     }
@@ -588,7 +588,7 @@ int main(int argc, char** argv){
                 setup_managed_array(&matrixB, matrixBs, sizeB, devices, validating);
             }
 
-            timing_ms[run] = tiled::multiGPUduplicate<false, false, array_type, TILE_SIZE>(
+            timing_μs[run] = tiled::multiGPUduplicate<false, false, array_type, TILE_SIZE>(
                 matrixA, widthA, heightA, 
                 matrixBs, widthB, heightB, 
                 matrixC, widthC, heightC,
@@ -622,7 +622,7 @@ int main(int argc, char** argv){
         }
         
         update_and_print_timing_stats(
-            timing_ms, runs, "tiled multi GPU duplicate w/ hints\0", 
+            timing_μs, runs, "tiled multi GPU duplicate w/ hints\0", 
             &all_timings, &timings, operations, datasize_bytes
         );
     }
@@ -662,7 +662,7 @@ int main(int argc, char** argv){
                 setup_managed_array(&matrixB, matrixBs, sizeB, devices, validating);
             }
 
-            timing_ms[run] = tiled::multiGPUduplicate<false, false, array_type, 2>(
+            timing_μs[run] = tiled::multiGPUduplicate<false, false, array_type, 2>(
                 matrixA, widthA, heightA, 
                 matrixBs, widthB, heightB, 
                 matrixC, widthC, heightC,
@@ -696,7 +696,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "tiled multi GPU duplicated w/ prefetch\0", 
+            timing_μs, runs, "tiled multi GPU duplicated w/ prefetch\0", 
             &all_timings, &timings, operations, datasize_bytes
         );
     }
@@ -754,7 +754,7 @@ int main(int argc, char** argv){
                 );
             }
 
-            timing_ms[run] = tiled::multiGPUsplit<false, false, array_type, TILE_SIZE>(
+            timing_μs[run] = tiled::multiGPUsplit<false, false, array_type, TILE_SIZE>(
                 matrixAs, widthA, heightSplitA, 
                 matrixBs, widthB, heightB,
                 matrixCs, widthC, heightSplitC,
@@ -793,7 +793,7 @@ int main(int argc, char** argv){
         }
         
         update_and_print_timing_stats(
-            timing_ms, runs, "tiled multi GPU split\0", &all_timings, &timings, 
+            timing_μs, runs, "tiled multi GPU split\0", &all_timings, &timings, 
             operations, datasize_bytes
         );
     }
@@ -851,7 +851,7 @@ int main(int argc, char** argv){
                 );
             }
 
-            timing_ms[run] = tiled::multiGPUsplit<false, false, array_type, TILE_SIZE>(
+            timing_μs[run] = tiled::multiGPUsplit<false, false, array_type, TILE_SIZE>(
                 matrixAs, widthA, heightSplitA, 
                 matrixBs, widthB, heightB,
                 matrixCs, widthC, heightSplitC,
@@ -890,7 +890,7 @@ int main(int argc, char** argv){
         }
         
         update_and_print_timing_stats(
-            timing_ms, runs, "tiled multi GPU split w/ hints\0", &all_timings, 
+            timing_μs, runs, "tiled multi GPU split w/ hints\0", &all_timings, 
             &timings, operations, datasize_bytes
         );
     }
@@ -948,7 +948,7 @@ int main(int argc, char** argv){
                 );
             }
 
-            timing_ms[run] = tiled::multiGPUsplit<false, false, array_type, TILE_SIZE>(
+            timing_μs[run] = tiled::multiGPUsplit<false, false, array_type, TILE_SIZE>(
                 matrixAs, widthA, heightSplitA, 
                 matrixBs, widthB, heightB,
                 matrixCs, widthC, heightSplitC,
@@ -987,7 +987,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "tiled multi GPU split w/ prefetch", &all_timings, 
+            timing_μs, runs, "tiled multi GPU split w/ prefetch", &all_timings, 
             &timings, operations, datasize_bytes
         );
     }
@@ -1042,7 +1042,7 @@ int main(int argc, char** argv){
                 );
             }
 
-            timing_ms[run] = tiled::multiGPUsplit<false, false, array_type, TILE_SIZE>(
+            timing_μs[run] = tiled::multiGPUsplit<false, false, array_type, TILE_SIZE>(
                 deviceMatrixAs, widthA, heightSplitA, 
                 deviceMatrixBs, widthB, heightB,
                 deviceMatrixCs, widthC, heightSplitC,
@@ -1081,7 +1081,7 @@ int main(int argc, char** argv){
         }
         
         update_and_print_timing_stats(
-            timing_ms, runs, "tiled multi GPU split w/ malloc\0", &all_timings, 
+            timing_μs, runs, "tiled multi GPU split w/ malloc\0", &all_timings, 
             &timings, operations, datasize_bytes
         );
     }
@@ -1122,7 +1122,7 @@ int main(int argc, char** argv){
                     zero_matrix(matrixC, widthC* heightC);
                 }
 
-                timing_ms[run] = cannon::singleGPU<array_type, cannon_block>(
+                timing_μs[run] = cannon::singleGPU<array_type, cannon_block>(
                     matrixA, matrixB, matrixC, heightC
                 );
 
@@ -1164,88 +1164,10 @@ int main(int argc, char** argv){
             }
         
             update_and_print_timing_stats(
-                timing_ms, runs, "cannon single GPU\0", &all_timings, &timings, 
+                timing_μs, runs, "cannon single GPU\0", &all_timings, &timings, 
                 operations, datasize_bytes
             );
         }
-
-        if (true) { // Benchmark cannon multi GPU on block basis
-            std::cout << "\nBenchmarking cannon multi GPU on block basis *****\n";
-
-            std::cout << "  Running a warmup\n";
-
-            if (standalone) {
-                setup_managed(&matrixA, sizeA, validating);
-                setup_managed(&matrixB, sizeB, validating);
-                setup_managed(&matrixC, sizeC, false);
-            }
-
-            cannon::blockedMultiGPU<array_type, cannon_block, quadrants_per_dim>(
-                matrixA, matrixB, matrixC, widthC, devices
-            );
-
-            if (standalone) {
-                free_managed(&matrixA);
-                free_managed(&matrixB);
-                free_managed(&matrixC);
-            }
-
-            for (int run=0; run<runs; run++) {
-                if (standalone) {
-                    setup_managed(&matrixA, sizeA, validating);
-                    setup_managed(&matrixB, sizeB, validating);
-                    setup_managed(&matrixC, sizeC, false);
-                    zero_matrix(matrixC, widthC* heightC);
-                }
-
-                timing_ms[run] = cannon::blockedMultiGPU<
-                    array_type, cannon_block, quadrants_per_dim
-                >(
-                    matrixA, matrixB, matrixC, widthC, devices
-                );
-
-
-                if (reduced_output == false) {
-                    print_loop_feedback(run, runs);
-                }
-
-                // do this at the end as reading output array will shift it back to 
-                // the host. Just use datasize_GB as crude tolerance for now.
-                if ((validating) && (run==runs-1)) {
-                    validate(
-                        &matrixA, widthA, heightA, 
-                        &matrixB, widthB, heightB, 
-                        &matrixC, datasize_bytes/1e9
-                    );
-                    if (false) {
-                        //std::cout << "Input A: \n";
-                        //print_matrix(matrixA, widthA, heightA);
-                        //std::cout << "Input B: \n";
-                        //print_matrix(matrixB, widthB, heightB);
-                        std::cout << "Result: \n";
-                        print_matrix(matrixC, widthC, heightC);
-                        cpuMatMul<array_type>(
-                            matrixA, widthA, heightA, 
-                            matrixB, widthB, heightB, 
-                            matrixC
-                        );
-                        std::cout << "Reference: \n";
-                        print_matrix(matrixC, widthC, heightC);
-                    }
-                }
-
-                if (standalone) {
-                    free_managed(&matrixA);
-                    free_managed(&matrixB);
-                    free_managed(&matrixC);
-                }
-            }
-        
-            update_and_print_timing_stats(
-                timing_ms, runs, "cannon multi GPU\0", &all_timings, &timings, 
-                operations, datasize_bytes
-            );
-        }        
 
         if (true) { // Benchmark cannon multi GPU on device basis
             std::cout << "\nBenchmarking cannon multi GPU on device basis *****\n";
@@ -1285,7 +1207,7 @@ int main(int argc, char** argv){
                     zero_c = true;
                 }
 
-                timing_ms[run] = cannon::multiGPU<array_type, TILE_SIZE>(
+                timing_μs[run] = cannon::multiGPU<array_type, TILE_SIZE>(
                     matrixA, matrixB, matrixC, widthC, devices, 
                     quadrants_per_dim, zero_c
                 );
@@ -1328,7 +1250,7 @@ int main(int argc, char** argv){
             }
         
             update_and_print_timing_stats(
-                timing_ms, runs, "cannon multi GPU\0", &all_timings, &timings, 
+                timing_μs, runs, "cannon device multi GPU\0", &all_timings, &timings, 
                 operations, datasize_bytes
             );
         }        
@@ -1371,7 +1293,7 @@ int main(int argc, char** argv){
                     zero_c = true;
                 }
 
-                timing_ms[run] = cannon::multiGPU<array_type, TILE_SIZE>(
+                timing_μs[run] = cannon::multiGPU<array_type, TILE_SIZE>(
                     matrixA, matrixB, matrixC, widthC, devices, 
                     quadrants_per_dim, zero_c
                 );
@@ -1414,7 +1336,7 @@ int main(int argc, char** argv){
             }
         
             update_and_print_timing_stats(
-                timing_ms, runs, "cannon prefetch multi GPU\0", &all_timings, &timings, 
+                timing_μs, runs, "cannon prefetch multi GPU\0", &all_timings, &timings, 
                 operations, datasize_bytes
             );
         }        
@@ -1453,7 +1375,7 @@ int main(int argc, char** argv){
                 setup_managed(&matrixC, sizeC, false);
             }
 
-            timing_ms[run] = page_tiled::multiGPU<
+            timing_μs[run] = page_tiled::multiGPU<
                 false, array_type, page_size
             >(
                 matrixA, widthA, heightA, 
@@ -1492,7 +1414,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "page tiled multi GPU\0", &all_timings, &timings, 
+            timing_μs, runs, "page tiled multi GPU\0", &all_timings, &timings, 
             operations, datasize_bytes
         );
     }
@@ -1533,7 +1455,7 @@ int main(int argc, char** argv){
                 setup_trans_managed(&matrixB, &matrixTransB, widthB, heightB, validating);
             }
 
-            timing_ms[run] = page_tiled::multiGPU<
+            timing_μs[run] = page_tiled::multiGPU<
                 true, array_type, page_size
             >(
                 matrixA, widthA, heightA, 
@@ -1565,7 +1487,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "page tiled multi GPU w/ trans B\0", &all_timings, &timings, 
+            timing_μs, runs, "page tiled multi GPU w/ trans B\0", &all_timings, &timings, 
             operations, datasize_bytes
         );
     }
@@ -1605,7 +1527,7 @@ int main(int argc, char** argv){
                 setup_managed(&matrixC, sizeC, false);
             }
 
-            timing_ms[run] = prefetch_page_tiled::multiGPU<
+            timing_μs[run] = prefetch_page_tiled::multiGPU<
                 false, array_type, page_size, sm_count
             >(
                 matrixA, widthA, heightA, 
@@ -1653,7 +1575,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "prefetching page tiled multi GPU\0", &all_timings, &timings, 
+            timing_μs, runs, "prefetching page tiled multi GPU\0", &all_timings, &timings, 
             operations, datasize_bytes
         );
     }
@@ -1689,7 +1611,7 @@ int main(int argc, char** argv){
                 setup_managed(&matrixC, sizeC, false);
             }
 
-            timing_ms[run] = prefetch_page_tiled::multiGPU<
+            timing_μs[run] = prefetch_page_tiled::multiGPU<
                 false, array_type, page_size, sm_count
             >(
                 matrixA, widthA, heightA, 
@@ -1737,7 +1659,7 @@ int main(int argc, char** argv){
         }
 
         update_and_print_timing_stats(
-            timing_ms, runs, "prefetching page tiled multi GPU\0", &all_timings, &timings, 
+            timing_μs, runs, "prefetching page tiled multi GPU\0", &all_timings, &timings, 
             operations, datasize_bytes
         );
     }

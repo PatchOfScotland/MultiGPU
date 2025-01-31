@@ -46,10 +46,10 @@ void free_ABC_managed(
     CCC(cudaFree(*matrixC));
 }
 
-void validate(
+void validateCPU(
     array_type** matrixA, const unsigned int widthA, const unsigned int heightA,
     array_type** matrixB, const unsigned int widthB, const unsigned int heightB,
-    array_type** matrixC, array_type tolerance
+    array_type** matrixC, array_type tolerance, const int split
 ) {
     if(cpuValidation<array_type>(
         *matrixA, widthA, heightA, 
@@ -59,11 +59,11 @@ void validate(
         std::cout << "  Result is correct\n";
     } else {
         std::cout << "  Result is incorrect. Skipping any "
-                << "subsequent runs\n";
+                  << "subsequent runs\n";
     }
 }
 
-void validateZorder(
+void validateBlocked(
     array_type** matrixA, const unsigned int widthA, const unsigned int heightA,
     array_type** matrixB, const unsigned int widthB, const unsigned int heightB,
     array_type** matrixC, array_type tolerance, int split, bool cpu
@@ -73,9 +73,9 @@ void validateZorder(
         array_type* matrixBz = (array_type*)malloc(widthB*heightB*sizeof(array_type));
         array_type* matrixCz = (array_type*)malloc(widthB*heightB*sizeof(array_type));
 
-        z_order<array_type>(*matrixA, matrixAz, widthA, heightA, split);
-        z_order<array_type>(*matrixB, matrixBz, widthB, heightB, split);
-        z_order<array_type>(*matrixC, matrixCz, widthB, heightB, split);
+        to_block<array_type>(*matrixA, matrixAz, widthA, heightA, split);
+        to_block<array_type>(*matrixB, matrixBz, widthB, heightB, split);
+        to_block<array_type>(*matrixC, matrixCz, widthB, heightB, split);
 
         if(cpuValidation<array_type>(
             matrixAz, widthA, heightA, 
@@ -105,7 +105,7 @@ void validateZorder(
         //#pragma omp parallel for reduction(+:count)
         for(int i = 0; i < heightA*widthB; ++i) {
             if (abs(matrixRef[i] - matrixValidating[i]) > tolerance) {
-                std::cout << matrixRef[i] << " - " << matrixValidating[i] << "\n";
+                //std::cout << matrixRef[i] << " - " << matrixValidating[i] << "\n";
                 count++;
             }
         }
@@ -125,7 +125,7 @@ int main(int argc, char** argv){
     {
         std::cout << "Usage: " 
                   << argv[0] 
-                  << " <array N> <benchmark repeats> -d(devices) <devices> -v(validation) -s(standalone) -r(reduced output) -c (coldstart)\n";
+                  << " <array N> <benchmark repeats> -d(devices) <devices> -v(validation) -r(reduced output) -c (coldstart)\n";
         exit(EXIT_FAILURE);
     } 
 
@@ -137,7 +137,6 @@ int main(int argc, char** argv){
     const unsigned int heightC = heightA;
     const unsigned int runs = atoi(argv[2]);
     bool validating = false;
-    bool standalone = false;
     bool reduced_output = false;
     bool coldstart = false;
 
@@ -149,9 +148,6 @@ int main(int argc, char** argv){
     for (int i=0; i<argc; i++) {
         if (strcmp(argv[i], "-v") == 0) {
             validating = true;
-        }
-        if (strcmp(argv[i], "-s") == 0) {
-            standalone = true;
         }
         if (strcmp(argv[i], "-r") == 0) {
             reduced_output = true;
@@ -199,17 +195,12 @@ int main(int argc, char** argv){
     else {
         std::cout << "Skipping output validation\n";
     }
-    if (standalone) {
-        std::cout << "Creating new datasets for each run\n";
-    }
 
-    array_type* matrixA = NULL;
-    array_type* matrixA_REF = NULL;
-    array_type* matrixB = NULL;
-    array_type* matrixC = NULL;
+    array_type* matrixA_ref = NULL;
+    array_type* matrixB_ref = NULL;
 
-    setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
-    setup_managed(&matrixA_REF, sizeA, validating);
+    setup_managed(&matrixA_ref, sizeA, validating);
+    setup_managed(&matrixB_ref, sizeB, validating);
 
     int timings = 0;
     struct timing_stat* all_timings = NULL;
@@ -224,28 +215,19 @@ int main(int argc, char** argv){
             int quadrants = 2;
             std::cout << "\nBenchmarking cannon multi GPU on device basis with " << quadrants << " quadrants per dimension *****\n";
                 
-            array_type* matrixA_DUP = NULL;
-            map_managed(&matrixA_DUP, &matrixA_REF, sizeA, validating);
-
-            //printf("REF:\n");
-            //print_matrix(matrixA_REF, widthA, heightA);
-            //printf("DUP:\n");
-            //print_matrix(matrixA_DUP, widthA, heightA);
+            array_type* matrixA = NULL;
+            array_type* matrixB = NULL;
+            array_type* matrixC = NULL;
+            map_managed(&matrixA, &matrixA_ref, widthA, heightA, validating, quadrants);
+            map_managed(&matrixB, &matrixB_ref, widthB, heightB, validating, quadrants);
+            zero_managed(&matrixC, sizeC, validating);
 
             if (!coldstart) {
                 std::cout << "  Running a warmup\n";
 
-                if (standalone) {
-                    setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
-                }
-
                 cannon::multiGPU<array_type, BLOCK_N>(
                     matrixA, matrixB, matrixC, widthC, devices, quadrants, validating
                 );
-
-                if (standalone) {
-                    free_ABC_managed(&matrixA, &matrixB, &matrixC);
-                }
             }
             else {
                 std::cout << "  Skipping warmup\n";
@@ -254,11 +236,6 @@ int main(int argc, char** argv){
             bool validate = false;
 
             for (int run=0; run<runs; run++) {
-                if (standalone) {
-                    setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
-                    zero_matrix(matrixC, widthC* heightC);
-                }
-
                 if ((validating) && (run==runs-1)) {
                     validate = true;
                 }
@@ -273,60 +250,63 @@ int main(int argc, char** argv){
 
                 // do this at the end as reading output array will shift it back to 
                 // the host. Just use datasize_GB as crude tolerance for now.
-                if ((validating) && (run==runs-1)) {
-                    const int split = widthC / quadrants;
-                    validateZorder(
-                        &matrixA, widthA, heightA, 
-                        &matrixB, widthB, heightB, 
-                        &matrixC, datasize_bytes/1e9, split, true
+                if (validate) {
+                    printf("  Starting validation check\n");
+
+                    array_type* matrixCz = (array_type*)malloc(sizeC*sizeof(array_type));
+                    from_block(matrixC, matrixCz, widthC, heightC, widthC/quadrants);
+
+                    validateCPU(
+                        &matrixA_ref, widthA, heightA, 
+                        &matrixB_ref, widthB, heightB, 
+                        &matrixCz, datasize_bytes/1e9, widthA/quadrants
                     );
+                    free(matrixCz);
                     if (false) {
                         std::cout << "Input A: \n";
-                        print_matrix_z(matrixA, widthA, quadrants);
+                        print_matrix(matrixA, widthA, heightA);
                         std::cout << "Input B: \n";
-                        print_matrix_z(matrixB, widthB, quadrants);
+                        print_matrix(matrixB, widthB, heightA);
                         std::cout << "Result: \n";
                         print_matrix_z(matrixC, widthC, quadrants);
-                        cpuMatMulZorder<array_type>(
-                            matrixA, widthA, heightA, 
-                            matrixB, widthB, heightB, 
-                            matrixC, split
+                        cpuMatMul<array_type>(
+                            matrixA_ref, widthA, heightA, 
+                            matrixB_ref, widthB, heightB, 
+                            matrixC
                         );
                         std::cout << "Reference: \n";
                         print_matrix(matrixC, widthC, heightC);
                     }
                 }
-
-                if (standalone) {
-                    free_ABC_managed(&matrixA, &matrixB, &matrixC);
-                }
             }
+
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
+
             update_and_print_timing_stats(
                 timing_μs, runs, "cannon multi GPU", &all_timings, &timings, 
                 operations, datasize_bytes
             );
-
-            free_managed(&matrixA_DUP);
         }  
 
-        if (false) { // Benchmark cannon overlapping multi GPU on device basis
+        if (true) { // Benchmark cannon overlapping multi GPU on device basis
             int quadrants = 4;
             std::cout << "\nBenchmarking cannon overlapping multi GPU on device basis with " << quadrants << " quadrants per dimension *****\n";
                 
+            array_type* matrixA = NULL;
+            array_type* matrixB = NULL;
+            array_type* matrixC = NULL;
+            map_managed(&matrixA, &matrixA_ref, widthA, heightA, validating, quadrants);
+            map_managed(&matrixB, &matrixB_ref, widthB, heightB, validating, quadrants);
+            zero_managed(&matrixC, sizeC, validating);
+
             if (!coldstart) {
                 std::cout << "  Running a warmup\n";
-
-                if (standalone) {
-                    setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
-                }
 
                 cannon::overlappingMultiGPU<array_type, BLOCK_N>(
                     matrixA, matrixB, matrixC, widthC, devices, quadrants, false
                 );
-
-                if (standalone) {
-                    free_ABC_managed(&matrixA, &matrixB, &matrixC);
-                }
             }
             else {
                 std::cout << "  Skipping warmup\n";
@@ -335,11 +315,6 @@ int main(int argc, char** argv){
             bool validate = false;
 
             for (int run=0; run<runs; run++) {
-                if (standalone) {
-                    setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC, validating);
-                    zero_matrix(matrixC, widthC* heightC);
-                }
-
                 if ((validating) && (run==runs-1)) {
                     validate = true;
                 }
@@ -354,54 +329,40 @@ int main(int argc, char** argv){
 
                 // do this at the end as reading output array will shift it back to 
                 // the host. Just use datasize_GB as crude tolerance for now.
-                if ((validating) && (run==runs-1)) {
-                    const int split = widthC / quadrants;
-                    
-                    validateZorder(
-                        &matrixA, widthA, heightA, 
-                        &matrixB, widthB, heightB, 
-                        &matrixC, datasize_bytes/1e9, split, false
+                if (validate) {
+                    printf("  Starting validation check\n");
+
+                    array_type* matrixCz = (array_type*)malloc(sizeC*sizeof(array_type));
+                    from_block(matrixC, matrixCz, widthC, heightC, widthC/quadrants);
+
+                    validateCPU(
+                        &matrixA_ref, widthA, heightA, 
+                        &matrixB_ref, widthB, heightB, 
+                        &matrixCz, datasize_bytes/1e9, widthA/quadrants
                     );
-                    if (true) {
+                    free(matrixCz);
+                    if (false) {
                         std::cout << "Input A: \n";
                         print_matrix(matrixA, widthA, heightA);
                         std::cout << "Input B: \n";
-                        print_matrix_z(matrixB, widthB, quadrants);
+                        print_matrix(matrixB, widthB, heightA);
                         std::cout << "Result: \n";
                         print_matrix_z(matrixC, widthC, quadrants);
-
-                        cannon::singleGPU<array_type, BLOCK_N>(
-                            matrixA, matrixB, matrixC, widthC
+                        cpuMatMul<array_type>(
+                            matrixA_ref, widthA, heightA, 
+                            matrixB_ref, widthB, heightB, 
+                            matrixC
                         );
-                        std::cout << "Reference Single GPU: \n";
+                        std::cout << "Reference: \n";
                         print_matrix(matrixC, widthC, heightC);
-
-                        cannon::multiGPU<array_type, BLOCK_N>(
-                            matrixA, matrixB, matrixC, widthC, 4, 1, true
-                        );
-                        std::cout << "Reference Multi GPU (1): \n";
-                        print_matrix(matrixC, widthC, heightC);
-
-                        cannon::multiGPU<array_type, BLOCK_N>(
-                            matrixA, matrixB, matrixC, widthC, 4, 2, true
-                        );
-                        std::cout << "Reference Multi GPU (2): \n";
-                        print_matrix(matrixC, widthC, heightC);
-
-                        //cannon::multiGPU<array_type, BLOCK_N>(
-                        //    matrixA, matrixB, matrixC, widthC, 4, 4, true
-                        //);
-                        //std::cout << "Reference Multi GPU (4): \n";
-                        //print_matrix(matrixC, widthC, heightC);
-
-
                     }
                 }
-
-                if (standalone) {
-                    free_ABC_managed(&matrixA, &matrixB, &matrixC);
-                }
             }
+
+            free_managed(&matrixA);
+            free_managed(&matrixB);
+            free_managed(&matrixC);
+
             update_and_print_timing_stats(
                 timing_μs, runs, "cannon overlapping GPU", &all_timings, &timings, 
                 operations, datasize_bytes

@@ -49,7 +49,7 @@ template<typename T>
 float cpuMatMulZorder(
     T* matrixA, unsigned int widthA, unsigned int heightA, 
     T* matrixB, unsigned int widthB, unsigned int heightB, 
-    T* matrixC, const int split
+    T* matrixC, const int tolerance, const int split
 ) {
     struct timeval cpu_start_time;
     struct timeval cpu_end_time;
@@ -57,8 +57,8 @@ float cpuMatMulZorder(
     T* matrixAz = (T*)malloc(widthA*heightA*sizeof(T));
     T* matrixBz = (T*)malloc(widthB*heightB*sizeof(T));
 
-    z_order<T>(matrixA, matrixAz, widthA, heightA, split);
-    z_order<T>(matrixB, matrixBz, widthB, heightB, split);
+    to_block<T>(matrixA, matrixAz, widthA, heightA, split);
+    to_block<T>(matrixB, matrixBz, widthB, heightB, split);
     
     gettimeofday(&cpu_start_time, NULL); 
 
@@ -97,32 +97,24 @@ bool cpuValidation(
     T* matrixB, unsigned int widthB, unsigned int heightB, 
     T* validating, T tolerance
 ) {
-
-    T* debug = (T*)calloc(widthA*heightA, sizeof(T));
     unsigned long int count = 0;
-    #pragma omp parallel for collapse(2) reduction(+:count)
+    //#pragma omp parallel for collapse(2) reduction(+:count)
     for(int i = 0; i < heightA; ++i) {
         for(int j = 0; j < widthB; ++j) {
-            T matrixC = 0;
+            T acc = 0;
             int c = i*widthB + j;
             for(int k = 0; k < widthA; ++k) {
                 int a = getIndex(false, i, k, heightA, widthA);
                 int b = getIndex(false, k, j, widthA, widthB);
-                matrixC += matrixA[a] * matrixB[b];
+                acc += matrixA[a] * matrixB[b];
             }
-            if (abs(matrixC - validating[c]) > tolerance) {
-                //printf("%f does not match %f at [%d][%d] with tolerance: %f\n", matrixC, validating[c], i, j, tolerance);
+            if (abs(acc - validating[c]) > tolerance) {
+                //printf("%f does not match %f at [%d][%d] with tolerance: %f\n", acc, validating[c], i, j, tolerance);
                 count++;
                 //debug[(i*widthB)+j] = 1;
             }
         }
     }
-
-
-    if (count != 0) {
-        //print_matrix(debug, widthA, heightA);
-    }
-    free(debug);
 
     if (count == 0) {
         return true;

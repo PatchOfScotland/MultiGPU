@@ -52,6 +52,15 @@ inline void cuda_assert(
     }
 }
 
+void cuda_error_check() {
+    cudaError_t cudaError = cudaPeekAtLastError();
+    if (cudaError != cudaSuccess) {
+        std::cerr << "CUDA beansed it\n" << cudaError << "\n";
+        std::cerr << cudaGetErrorString(cudaError) << "\n";
+        exit(cudaError);
+    }
+}
+
 void check_device_count(int devices) {
     int device_count;
     CCC(cudaGetDeviceCount(&device_count));

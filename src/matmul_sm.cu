@@ -110,7 +110,7 @@ int main(int argc, char** argv){
     array_type* matrixTransB = NULL;
     array_type* matrixC = NULL;
     
-    float* timing_ms = (float*)calloc(repeats, sizeof(float));
+    float* timing_μs = (float*)calloc(repeats, sizeof(float));
     
     setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
     setup_trans_managed(&matrixB, &matrixTransB, widthB, heightB);
@@ -151,7 +151,7 @@ int main(int argc, char** argv){
                     setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
                 }
 
-                timing_ms[repeat] = prefetch_page_tiled_sm::multiGPU<
+                timing_μs[repeat] = prefetch_page_tiled_sm::multiGPU<
                     false, array_type, page_size
                 >(
                     matrixA, widthA, heightA, 
@@ -165,17 +165,17 @@ int main(int argc, char** argv){
                 }
             }
 
-            float min = timing_ms[0];
-            float max = timing_ms[0];
+            float min = timing_μs[0];
+            float max = timing_μs[0];
             float total = 0;
 
             for (int repeat=0; repeat<repeats; repeat++) {
-                total = total + timing_ms[repeat];
-                if (timing_ms[repeat] < min) {
-                    min = timing_ms[repeat];
+                total = total + timing_μs[repeat];
+                if (timing_μs[repeat] < min) {
+                    min = timing_μs[repeat];
                 }
-                if (timing_ms[repeat] > max) {
-                    max = timing_ms[repeat];
+                if (timing_μs[repeat] > max) {
+                    max = timing_μs[repeat];
                 }
             }
             matched[run] = total/repeats;
@@ -209,7 +209,7 @@ int main(int argc, char** argv){
                     setup_ABC_managed(&matrixA, sizeA, &matrixB, sizeB, &matrixC, sizeC);
                 }
 
-                timing_ms[repeat] = prefetch_page_tiled_sm::multiGPU<
+                timing_μs[repeat] = prefetch_page_tiled_sm::multiGPU<
                     false, array_type, page_size
                 >(
                     matrixA, widthA, heightA, 
@@ -223,17 +223,17 @@ int main(int argc, char** argv){
                 }
             }
 
-            float min = timing_ms[0];
-            float max = timing_ms[0];
+            float min = timing_μs[0];
+            float max = timing_μs[0];
             float total = 0;
 
             for (int repeat=0; repeat<repeats; repeat++) {
-                total = total + timing_ms[repeat];
-                if (timing_ms[repeat] < min) {
-                    min = timing_ms[repeat];
+                total = total + timing_μs[repeat];
+                if (timing_μs[repeat] < min) {
+                    min = timing_μs[repeat];
                 }
-                if (timing_ms[repeat] > max) {
-                    max = timing_ms[repeat];
+                if (timing_μs[repeat] > max) {
+                    max = timing_μs[repeat];
                 }
             }
             offset[run] = total/repeats;

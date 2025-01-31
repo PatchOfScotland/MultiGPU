@@ -24,7 +24,7 @@ float get_throughput(float timing_microseconds, double data_bytes) {
     return (float)data_gigabytes / timing_seconds;
 }
 
-float get_flops(float timing_microseconds, long int operations) {
+float get_flops(float timing_microseconds, double operations) {
     float timing_seconds = timing_microseconds * 1e-6f;
     float giga_operations = operations /1e9f;
     return (float)giga_operations / timing_seconds;
@@ -32,14 +32,14 @@ float get_flops(float timing_microseconds, long int operations) {
 
 typedef struct timing_stat {
     float timing_microseconds;
-    unsigned long int flops;
-    unsigned long int datasize_bytes;
+    double flops;
+    double datasize_bytes;
     const char* type;
 
     timing_stat(
         const char* type, 
-        long int flops, 
-        long int datasize_bytes
+        double flops, 
+        double datasize_bytes
     ): type(type), 
        flops(flops), 
        datasize_bytes(datasize_bytes)
@@ -79,8 +79,9 @@ void init_matrix(T* data, uint64_t size) {
 
 template<class T>
 void init_matrix_linear(T* data, uint64_t size) {
+    #pragma omp parallel for
     for (uint64_t i = 0; i < size; i++)
-        data[i] = i;
+        data[i] = i%42;
         
 }
 
@@ -102,16 +103,16 @@ void transpose_matrix(T* input, size_t width, size_t height, T* output) {
 }
 
 // T is element type
-// split is the length of a 'Z' grouping in both dimensions
+// split is the length of a 'block' grouping in both dimensions
 template<class T>
-int z_order(T* input,  T* output, size_t width, size_t height, int split) {
+int from_block(T* input,  T* output, size_t width, size_t height, int split) {
 
     if (width%split) {
-        printf("Cannot convert to z order. Width of %zu does not divide by %d\n", width, split);
+        printf("Cannot convert to block. Width of %zu does not divide by %d\n", width, split);
         return 1;
     }
     if (height%split) {
-        printf("Cannot convert to z order. Height of %zu does not divide by %d\n", height, split);
+        printf("Cannot convert to block. Height of %zu does not divide by %d\n", height, split);
         return 1;
     }
 
@@ -131,6 +132,42 @@ int z_order(T* input,  T* output, size_t width, size_t height, int split) {
                         + width*tileInnerX // offset within each tile for its Y index
                         + split*tileX // offset for each tile in X direction
                         + tileY*split*width; // offset for each tile in Y direction
+                    output[output_offset] = input[input_offset];
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
+template<class T>
+int to_block(T* input, T* output, size_t width, size_t height, int split) {
+    if (width % split) {
+        printf("Cannot convert from block. Width of %zu does not divide by %d\n", width, split);
+        return 1;
+    }
+    if (height % split) {
+        printf("Cannot convert from block. Height of %zu does not divide by %d\n", height, split);
+        return 1;
+    }
+
+    int tileCountX = width / split;
+    int tileCountY = height / split;
+
+    #pragma omp parallel for collapse(4)
+    for (int tileX = 0; tileX < tileCountX; tileX++) {
+        for (int tileY = 0; tileY < tileCountY; tileY++) {
+            for (int tileInnerX = 0; tileInnerX < split; tileInnerX++) {
+                for (int tileInnerY = 0; tileInnerY < split; tileInnerY++) {
+                    int input_offset = tileInnerY // offset within each tile for its X index
+                        + width * tileInnerX // offset within each tile for its Y index
+                        + split * tileX // offset for each tile in X direction
+                        + tileY * split * width; // offset for each tile in Y direction
+                    int output_offset = tileInnerY // offset within each tile for its X index
+                        + split * tileInnerX // offset within each tile for its Y index
+                        + tileX * split * split  // offset for each tile in X direction
+                        + tileY * split * width; // offset for each tile in Y direction
                     output[output_offset] = input[input_offset];
                 }
             }
@@ -218,9 +255,9 @@ void print_matrix_z(T* matrix, size_t n, size_t quadrants_per_dim) {
 }
 
 void _update_and_print_timing_stats(
-    float* timing_array, size_t array_len, const char* title, 
+    float* timing_array_μs, size_t array_len, const char* title, 
     timing_stat** all_timings_ptr, int* timings, 
-    unsigned long int operations, unsigned long int datasize_bytes, bool print
+    double operations, double datasize_bytes, bool print
 ) {
     if (*timings == 0) {
         int malloc_size = (*timings+1)*sizeof(timing_stat);
@@ -242,17 +279,17 @@ void _update_and_print_timing_stats(
         timing_stat(title, operations, datasize_bytes);
 
     float mean_ms = 0;
-    float min = timing_array[0];
-    float max = timing_array[0];
+    float min = timing_array_μs[0];
+    float max = timing_array_μs[0];
     float total = 0;
 
     for (int i=0; i<array_len; i++) {
-        total = total + timing_array[i];
-        if (timing_array[i] < min) {
-            min = timing_array[i];
+        total = total + timing_array_μs[i];
+        if (timing_array_μs[i] < min) {
+            min = timing_array_μs[i];
         }
-        if (timing_array[i] > max) {
-            max = timing_array[i];
+        if (timing_array_μs[i] > max) {
+            max = timing_array_μs[i];
         }
     }
     mean_ms = total/array_len;
@@ -260,10 +297,10 @@ void _update_and_print_timing_stats(
     if (print) {
         float gigabytes_per_second = get_throughput(mean_ms, to_update.datasize_bytes);
         float gigaflops_per_second = get_flops(mean_ms, to_update.flops);
-        std::cout << "    Total runtime: " << total <<"ms\n";
-        std::cout << "    Min runtime:   " << min <<"ms\n";
-        std::cout << "    Max runtime:   " << max <<"ms\n";
-        std::cout << "    Mean runtime:  " << mean_ms <<"ms\n";
+        std::cout << "    Total runtime: " << total / 1e6 <<"s\n";
+        std::cout << "    Min runtime:   " << min / 1e6 <<"s\n";
+        std::cout << "    Max runtime:   " << max / 1e6 <<"s\n";
+        std::cout << "    Mean runtime:  " << mean_ms / 1e6 <<"s\n";
         std::cout << "    Throughput:    " << gigabytes_per_second <<"GB/sec\n";
         std::cout << "    GLFOPS:        " << gigaflops_per_second <<"/sec\n";
 
@@ -288,33 +325,33 @@ void _update_and_print_timing_stats(
 }
 
 void update_timing_stats(
-    float* timing_array, size_t array_len, const char* title, 
+    float* timing_array_μs, size_t array_len, const char* title, 
     timing_stat* all_timings[], int* timings, 
-    unsigned long int operations, unsigned long int datasize_bytes
+    double operations, double datasize_bytes
 ) {
     _update_and_print_timing_stats(
-        timing_array, array_len, title, all_timings, timings, operations, 
+        timing_array_μs, array_len, title, all_timings, timings, operations, 
         datasize_bytes, false
     );
 }
 
 void update_and_print_timing_stats(
-    float* timing_array, size_t array_len, const char* title, 
+    float* timing_array_μs, size_t array_len, const char* title, 
     timing_stat** all_timings_ptr, int* timings, 
-    unsigned long int operations, unsigned long int datasize_bytes
+    double operations, double datasize_bytes
 ) {
     _update_and_print_timing_stats(
-        timing_array, array_len, title, all_timings_ptr, timings, operations, 
+        timing_array_μs, array_len, title, all_timings_ptr, timings, operations, 
         datasize_bytes, true
     );
 }
 
-void print_loop_feedback(int run, int runs) {
+void print_loop_feedback(int run, int runs, float timing) {
     if (run==0) {
-        std::cout << "  Completed run " << run+1 << "/" << runs << std::flush;
+        std::cout << "  Completed run " << run+1 << "/" << runs << " in " << timing/1e6 << "s" << std::flush;
     }
     else {
-        std::cout << "\r  Completed run " << run+1 << "/" << runs << std::flush;
+        std::cout << "\r  Completed run " << run+1 << "/" << runs << " in " << timing/1e6 << "s" << std::flush;
     }
     if (run==runs-1) {
         std::cout << "\n";
@@ -343,8 +380,49 @@ void setup_managed(
 }
 
 template<class T>
-void setup_malloced(
+void map_managed(
+    T** matrix, T** source, uint64_t width, uint64_t height, bool validating, int z_blocks
+) {
+    int64_t size = width*height;
+    CCC(cudaMallocManaged(matrix, size*sizeof(T)));
+    if (validating) {
+        T* out = *matrix;
+        T* in = *source;
+        if (z_blocks == 1) {
+            #pragma omp parallel for
+            for (uint64_t i = 0; i < size; i++) {
+                out[i] = in[i];
+            }
+        }
+        else {
+            if (width%z_blocks) {
+                printf("Cannot convert to block. Width of %zu does not divide by %d\n", width, z_blocks);
+                return;
+            }
+            if (height%z_blocks) {
+                printf("Cannot convert to block. Height of %zu does not divide by %d\n", height, z_blocks);
+                return;
+            }
+            to_block<T>(in, out, width, height, width/z_blocks);
+        }
+    }
+}
+
+template<class T>
+void zero_managed(
     T** matrix, const unsigned long int size, bool validating
+) {
+    CCC(cudaMallocManaged(matrix, size*sizeof(T)));
+    if (validating) {
+        //init_matrix<T>(*matrix, size);
+        zero_matrix<T>(*matrix, size);
+    }
+}
+
+
+template<class T>
+void setup_malloced(
+    T** matrix, const uint64_t size, bool validating
 ) {
     *matrix = (T*)calloc(size, sizeof(T));
     if (validating) {
