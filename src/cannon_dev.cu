@@ -205,7 +205,7 @@ int main(int argc, char** argv){
     int timings = 0;
     struct timing_stat* all_timings = NULL;
     
-    float* timing_μs = (float*)calloc(runs, sizeof(float));
+    double* timing_μs = (double*)calloc(runs, sizeof(double));
 
     if ((widthA != heightA) || (widthA != widthB) || (widthA != heightB)) {
         std::cout << "Cannot run cannon algorithm for uneven matrix sizes\n";

@@ -80,7 +80,7 @@ namespace cannon {
     }
 
     template<typename T, int TL>
-    float overlappingMultiGPU(
+    double overlappingMultiGPU(
         T* matrixA, T* matrixB, T* matrixC, unsigned int n,
         const int device_count, const size_t quadrants_per_dim, bool zero_c
     ) {
@@ -181,7 +181,7 @@ namespace cannon {
         free(matrixAs);
         free(matrixBs);
 
-        float time_microseconds = (end_time.tv_usec+(1e6*end_time.tv_sec)) 
+        double time_microseconds = (end_time.tv_usec+(1e6*end_time.tv_sec)) 
             - (start_time.tv_usec+(1e6*start_time.tv_sec));
     
         return time_microseconds;
@@ -245,7 +245,7 @@ namespace cannon {
     }
 
     template<typename T, int TL>
-    float multiGPU(
+    double multiGPU(
         T* matrixA, T* matrixB, T* matrixC, unsigned int n,
         const int device_count, const size_t quadrants_per_dim, bool validate 
     ) {
@@ -360,14 +360,14 @@ namespace cannon {
         free(matrixAs);
         free(matrixBs);
 
-        float time_microseconds = (end_time.tv_usec+(1e6*end_time.tv_sec)) 
+        double time_microseconds = (end_time.tv_usec+(1e6*end_time.tv_sec)) 
             - (start_time.tv_usec+(1e6*start_time.tv_sec));
     
         return time_microseconds;
     }
 
     template<typename T, int cannon_block>
-    float singleGPU(
+    double singleGPU(
         T* matrixA, T* matrixB, T* matrixC, unsigned int n
     ) {
         unsigned int dim = (n + cannon_block - 1) / cannon_block; 
@@ -395,7 +395,7 @@ namespace cannon {
 
         cuda_error_check();
 
-        float runtime_milliseconds = get_runtime(start_event, end_event);
+        double runtime_milliseconds = get_runtime(start_event, end_event);
         
         return runtime_milliseconds * 1e3;
     }
@@ -440,7 +440,7 @@ namespace cannon {
     }
 
     template<typename T, int cannon_block, size_t quadrants_per_dim>
-    float blockedMultiGPU(
+    double blockedMultiGPU(
         T* matrixA, T* matrixB, T* matrixC, unsigned int n,
         const int device_count
     ) {
@@ -498,7 +498,7 @@ namespace cannon {
         
         cudaSetDevice(origin_device);
 
-        float time_microseconds = (end_time.tv_usec+(1e6*end_time.tv_sec)) 
+        double time_microseconds = (end_time.tv_usec+(1e6*end_time.tv_sec)) 
             - (start_time.tv_usec+(1e6*start_time.tv_sec));
     
         return time_microseconds;

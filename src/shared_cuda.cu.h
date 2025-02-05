@@ -3,8 +3,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <thread>
-#include <iostream>
+//#include <thread>
+//#include <iostream>
 #include <unistd.h>  
 
 #include "cuda.h"
@@ -39,13 +39,7 @@ inline void cuda_assert(
     cudaError_t code, const char *file, int line, bool abort=true
 ) {
     if (code != cudaSuccess) {
-        std::cerr << "\nCUDA call at line " 
-                  << line
-                  << " of file " 
-                  << file
-                  << " failed: " 
-                  << cudaGetErrorString(code) 
-                  << "\n";
+        printf("\nCUDA call at line %d of file %s failed: %s\n", line, file, cudaGetErrorString(code));
         if (abort == true) {
             exit(code);
         }
@@ -55,8 +49,8 @@ inline void cuda_assert(
 void cuda_error_check() {
     cudaError_t cudaError = cudaPeekAtLastError();
     if (cudaError != cudaSuccess) {
-        std::cerr << "CUDA beansed it\n" << cudaError << "\n";
-        std::cerr << cudaGetErrorString(cudaError) << "\n";
+        fprintf(stderr, "CUDA beansed it\n");
+        fprintf(stderr, "%s\n", cudaGetErrorString(cudaError));
         exit(cudaError);
     }
 }
@@ -66,11 +60,7 @@ void check_device_count(int devices) {
     CCC(cudaGetDeviceCount(&device_count));
 
     if (devices > device_count) {
-        std::cout << "Requested more devices (" 
-                  << devices 
-                  << ") than exist locally (" 
-                  << device_count 
-                  << ")\n";
+        printf("Requested more devices (%d ) than exist locally (%d)\n", devices, device_count);
         exit(1); 
     }
 }

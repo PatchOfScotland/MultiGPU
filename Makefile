@@ -27,6 +27,10 @@ cannon_dev:
 	mkdir -p build/$(BUILD_DIR)
 	nvcc src/cannon_dev.cu -o $^ build/$(BUILD_DIR)/cannon_dev $(FLAGS)
 
+run_cannon:
+	mkdir -p build/$(BUILD_DIR)
+	nvcc src/run_cannon.cu -o $^ build/$(BUILD_DIR)/run_cannon $(FLAGS)
+
 hendrix:
 	mkdir -p build/$(BUILD_DIR)
 	nvcc src/map.cu -o $^ build/$(BUILD_DIR)/map $(FLAGS)
@@ -47,3 +51,4 @@ clean:
 sanity_check:
 	mkdir -p build/$(BUILD_DIR)
 	nvcc src/sanity_check.cu -o $^ build/$(BUILD_DIR)/sanity_check $(FLAGS)
+	

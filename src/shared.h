@@ -255,7 +255,7 @@ void print_matrix_z(T* matrix, size_t n, size_t quadrants_per_dim) {
 }
 
 void _update_and_print_timing_stats(
-    float* timing_array_μs, size_t array_len, const char* title, 
+    double* timing_array_μs, size_t array_len, const char* title, 
     timing_stat** all_timings_ptr, int* timings, 
     double operations, double datasize_bytes, bool print
 ) {
@@ -278,10 +278,10 @@ void _update_and_print_timing_stats(
     struct timing_stat to_update = 
         timing_stat(title, operations, datasize_bytes);
 
-    float mean_ms = 0;
-    float min = timing_array_μs[0];
-    float max = timing_array_μs[0];
-    float total = 0;
+    double mean_ms = 0;
+    double min = timing_array_μs[0];
+    double max = timing_array_μs[0];
+    double total = 0;
 
     for (int i=0; i<array_len; i++) {
         total = total + timing_array_μs[i];
@@ -295,8 +295,8 @@ void _update_and_print_timing_stats(
     mean_ms = total/array_len;
 
     if (print) {
-        float gigabytes_per_second = get_throughput(mean_ms, to_update.datasize_bytes);
-        float gigaflops_per_second = get_flops(mean_ms, to_update.flops);
+        double gigabytes_per_second = get_throughput(mean_ms, to_update.datasize_bytes);
+        double gigaflops_per_second = get_flops(mean_ms, to_update.flops);
         std::cout << "    Total runtime: " << total / 1e6 <<"s\n";
         std::cout << "    Min runtime:   " << min / 1e6 <<"s\n";
         std::cout << "    Max runtime:   " << max / 1e6 <<"s\n";
@@ -325,7 +325,7 @@ void _update_and_print_timing_stats(
 }
 
 void update_timing_stats(
-    float* timing_array_μs, size_t array_len, const char* title, 
+    double* timing_array_μs, size_t array_len, const char* title, 
     timing_stat* all_timings[], int* timings, 
     double operations, double datasize_bytes
 ) {
@@ -336,7 +336,7 @@ void update_timing_stats(
 }
 
 void update_and_print_timing_stats(
-    float* timing_array_μs, size_t array_len, const char* title, 
+    double* timing_array_μs, size_t array_len, const char* title, 
     timing_stat** all_timings_ptr, int* timings, 
     double operations, double datasize_bytes
 ) {
